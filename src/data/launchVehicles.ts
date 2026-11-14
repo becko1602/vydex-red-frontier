@@ -1,0 +1,22 @@
+import type { DestinationId } from './destinations';
+export type LauncherId = 'scout' | 'pioneer' | 'titan';
+export type Launcher = { id: LauncherId; name: string; purpose: string; strengths: string; limitations: string; cost: number; height: number; diameter: number; stages: number; boosters: number; fairingDiameter: number; fairingHeight: number; capacity: Record<'earth'|'moon'|'mars'|'asteroid', number>; color: string };
+// FICTIONAL educational service values. Capacities include destination injection by the provider.
+// Provider structure/fuel is never part of spacecraft wet mass or its propellant reserves.
+export const launchers: Record<LauncherId, Launcher> = {
+ scout: { id:'scout', name:'Vydex Scout', purpose:'A lean launcher for compact Earth science satellites.', strengths:'Lowest launch cost; leaves more credits for science.', limitations:'Earth orbit only. A narrow fairing needs a compact, stowed payload.', cost:4, height:24, diameter:2.4, stages:2, boosters:0, fairingDiameter:4.0, fairingHeight:5.5, capacity:{earth:520,moon:0,mars:0,asteroid:0}, color:'#7cd7e4' },
+ pioneer: { id:'pioneer', name:'Vydex Pioneer', purpose:'A balanced carrier for lunar stations, larger satellites and VY-26 probes.', strengths:'Affordable lunar and asteroid delivery with extra room for instruments.', limitations:'No Mars delivery; heavier lunar craft require Titan.', cost:7, height:36, diameter:3.6, stages:2, boosters:0, fairingDiameter:5.2, fairingHeight:6.5, capacity:{earth:950,moon:800,mars:0,asteroid:700}, color:'#d6b679' },
+ titan: { id:'titan', name:'Vydex Titan', purpose:'A heavy carrier for Mars landers and ambitious lunar payloads.', strengths:'All playable destinations; the largest payload bay and delivery capacity.', limitations:'Highest service cost: fewer mission credits remain for the spacecraft.', cost:10, height:48, diameter:4.4, stages:3, boosters:2, fairingDiameter:6.0, fairingHeight:8, capacity:{earth:1800,moon:1400,mars:1200,asteroid:1400}, color:'#ee885b' },
+};
+export const launcherIds = Object.keys(launchers) as LauncherId[];
+export const capacityFor = (id: LauncherId, destination: DestinationId) => launchers[id].capacity[destination as keyof Launcher['capacity']] || 0;
+export const recommendedLauncher = (destination: DestinationId): LauncherId => destination==='earth'?'scout':destination==='mars'?'titan':'pioneer';
+export const launcherSpecHelp = {
+ cost: ['Launch cost', 'Mission credits buy one provider launch, including its stages, launch propellant and destination injection. These fictional credits are not real prices. Your spacecraft hardware and fuels are charged separately.'],
+ capacity: ['Destination payload capacity', 'The maximum spacecraft wet mass the provider can deliver to this destination. Wet mass includes all installed parts and spacecraft propellant. Delivering to Mars needs more energy than reaching Earth orbit, so Earth capacity cannot be used for Mars. Zero means this route is not supported.'],
+ fairing: ['Usable fairing envelope', 'A protective shell surrounds the stowed spacecraft during ascent. Our conservative usable space is a cylinder: every corner of the stowed equipment must fit inside its diameter and height. Solar wings are folded for launch. This is a game packaging approximation, not a structural clearance analysis.'],
+ stages: ['Stages and boosters', 'A stage drops empty structure and engines during the cinematic ascent. Scout and Pioneer have two serial stages; Titan has two serial stages plus a pair of boosters jettisoned together as its first stage group. Launch stages are separate from your cruise deck and landing engine.'],
+ dimensions: ['Rocket dimensions', 'The full fictional rocket height and core diameter, in metres. The launch scene uses a single shared visual scale; catalogue dimensions are design values, not calculated flight performance.'],
+ compatibility: ['Mission compatibility', 'A launch must support the selected route, fit your wet mass and fit your stowed spacecraft dimensions. Remove optional equipment, reduce fuel only while keeping maneuver reserve, or switch to a larger carrier. Switching never removes your installed parts.'],
+ budget: ['Remaining mission budget', 'Starting credits minus spacecraft hardware, spacecraft propellant and exactly one launch service. Unspent credits count in the transparent debrief score. A large rocket may leave too little for required scientific equipment.'],
+} as const;

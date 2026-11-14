@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "/tmp/vydex-sim",
+    "types": []
+  },
+  "include": [
+    "src/data/*.ts",
+    "src/sim/physics.ts",
+    "src/sim/game.ts",
+    "src/sim/checks.ts"
+  ]
+}

@@ -1,0 +1,172 @@
+{
+  "scope": "Entire production dist, all lazy chunks included; excludes source maps. Compression measured locally, not a network trace.",
+  "files": [
+    {
+      "file": "assets/Asteroid-cFEyKOob.js",
+      "rawBytes": 20476,
+      "gzipBytes": 6372,
+      "brotliBytes": 5649
+    },
+    {
+      "file": "assets/Cosmos-CxG8Q7Y7.js",
+      "rawBytes": 10709,
+      "gzipBytes": 3536,
+      "brotliBytes": 3147
+    },
+    {
+      "file": "assets/Hangar-5NQ8SH84.js",
+      "rawBytes": 6285,
+      "gzipBytes": 2606,
+      "brotliBytes": 2348
+    },
+    {
+      "file": "assets/OrbitControls-oqh3UCQv.js",
+      "rawBytes": 15507,
+      "gzipBytes": 4755,
+      "brotliBytes": 4313
+    },
+    {
+      "file": "assets/Orbital-BII1emFG.js",
+      "rawBytes": 1959,
+      "gzipBytes": 1020,
+      "brotliBytes": 930
+    },
+    {
+      "file": "assets/Planet-CPoitjf4.js",
+      "rawBytes": 5395,
+      "gzipBytes": 2397,
+      "brotliBytes": 2206
+    },
+    {
+      "file": "assets/Spacecraft-BYtCGN0j.js",
+      "rawBytes": 10454,
+      "gzipBytes": 3024,
+      "brotliBytes": 2696
+    },
+    {
+      "file": "assets/World-te-6-xwe.js",
+      "rawBytes": 11582,
+      "gzipBytes": 4399,
+      "brotliBytes": 3970
+    },
+    {
+      "file": "assets/icon-192.png",
+      "rawBytes": 1028,
+      "gzipBytes": 839,
+      "brotliBytes": 803
+    },
+    {
+      "file": "assets/icon-512.png",
+      "rawBytes": 2942,
+      "gzipBytes": 1771,
+      "brotliBytes": 1791
+    },
+    {
+      "file": "assets/index-AFhzkfSf.css",
+      "rawBytes": 66814,
+      "gzipBytes": 14759,
+      "brotliBytes": 12843
+    },
+    {
+      "file": "assets/index-Bb6hhXPa.js",
+      "rawBytes": 1255611,
+      "gzipBytes": 357671,
+      "brotliBytes": 288310
+    },
+    {
+      "file": "assets/planets/earth-clouds.png",
+      "rawBytes": 226113,
+      "gzipBytes": 225477,
+      "brotliBytes": 226118
+    },
+    {
+      "file": "assets/planets/earth.jpg",
+      "rawBytes": 512606,
+      "gzipBytes": 506112,
+      "brotliBytes": 502823
+    },
+    {
+      "file": "assets/planets/jupiter.jpg",
+      "rawBytes": 157780,
+      "gzipBytes": 157726,
+      "brotliBytes": 157785
+    },
+    {
+      "file": "assets/planets/mars-bump.jpg",
+      "rawBytes": 140596,
+      "gzipBytes": 139797,
+      "brotliBytes": 140601
+    },
+    {
+      "file": "assets/planets/mars.jpg",
+      "rawBytes": 525256,
+      "gzipBytes": 524320,
+      "brotliBytes": 525261
+    },
+    {
+      "file": "assets/planets/moon.jpg",
+      "rawBytes": 403689,
+      "gzipBytes": 403122,
+      "brotliBytes": 403694
+    },
+    {
+      "file": "assets/planets/saturn.jpg",
+      "rawBytes": 70548,
+      "gzipBytes": 61173,
+      "brotliBytes": 61823
+    },
+    {
+      "file": "assets/planets/sun.jpg",
+      "rawBytes": 281479,
+      "gzipBytes": 280804,
+      "brotliBytes": 281484
+    },
+    {
+      "file": "assets/planets/venus.jpg",
+      "rawBytes": 255067,
+      "gzipBytes": 254798,
+      "brotliBytes": 255072
+    },
+    {
+      "file": "assets/vydex-maskable.svg",
+      "rawBytes": 230,
+      "gzipBytes": 189,
+      "brotliBytes": 165
+    },
+    {
+      "file": "assets/vydex.svg",
+      "rawBytes": 246,
+      "gzipBytes": 187,
+      "brotliBytes": 163
+    },
+    {
+      "file": "data/mission-scenarios.json",
+      "rawBytes": 1900,
+      "gzipBytes": 829,
+      "brotliBytes": 667
+    },
+    {
+      "file": "index.html",
+      "rawBytes": 865,
+      "gzipBytes": 471,
+      "brotliBytes": 341
+    },
+    {
+      "file": "manifest.webmanifest",
+      "rawBytes": 626,
+      "gzipBytes": 328,
+      "brotliBytes": 266
+    },
+    {
+      "file": "sw.js",
+      "rawBytes": 1504,
+      "gzipBytes": 686,
+      "brotliBytes": 612
+    }
+  ],
+  "totals": {
+    "rawBytes": 3987267,
+    "gzipBytes": 2959168,
+    "brotliBytes": 2885881
+  }
+}

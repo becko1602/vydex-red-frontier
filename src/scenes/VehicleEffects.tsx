@@ -1,0 +1,8 @@
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import { engine } from '../sim/game';
+import { input } from '../input';
+import { useGame } from '../store';
+// Emissive exhaust only, no atmospheric smoke in vacuum. Inputs and actual propellant gate each pulse.
+export default function VehicleEffects(){const main=useRef<THREE.Group>(null),jets=useRef<(THREE.Group|null)[]>([]);useFrame(()=>{const d=engine.data,ui=useGame.getState(),active=d.stage==='orbit'&&d.battery>0&&!ui.settings.inspection,rcs=active&&d.cruiseFuel>0&&!d.orbital.deployed; if(main.current){main.current.visible=rcs&&d.destination==='asteroid'&&d.engineEnabled&&d.throttle>0;main.current.scale.y=Math.max(.01,d.throttle)}const values=[input.yaw??input.turn,input.pitch??input.forward,input.roll??0,input.rcsX??0,input.rcsZ??0];jets.current.forEach((g,i)=>{if(g)g.visible=rcs&&(Math.abs(values[i%5])>.01||(d.assist&&Math.abs([d.orbital.yawRate,d.orbital.pitchRate,d.orbital.rollRate][i%3])>.008))})});return <><group position={[0,-2.7,-.35]} rotation={[Math.PI/2,0,0]}><group ref={main} visible={false}><mesh position={[0,-.65,0]} rotation={[0,0,Math.PI]}><coneGeometry args={[.2,1.3,12]}/><meshBasicMaterial color="#9cecff" transparent opacity={.7} depthWrite={false}/></mesh></group></group>{Array.from({length:6},(_,i)=><group key={i} position={[Math.cos(i*Math.PI/3)*1.1,-1.9,Math.sin(i*Math.PI/3)*1.1]} rotation={[0,0,i*Math.PI/3]}><group ref={g=>{jets.current[i]=g}} visible={false}><mesh position={[0,-.25,0]} rotation={[0,0,Math.PI]}><coneGeometry args={[.065,.5,8]}/><meshBasicMaterial color="#b3f3ff" transparent opacity={.65} depthWrite={false}/></mesh></group></group>)}</>}

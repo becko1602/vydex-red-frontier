@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "seed": 42026,
+  "classification": "Fictional educational scenario; not live Mars conditions",
+  "landing": {
+    "altitudeM": 500,
+    "verticalVelocityMs": -12,
+    "xM": 0,
+    "zM": 0
+  },
+  "dustTransmission": 0.72,
+  "demo": {
+    "label": "Preset initial conditions, compressed timeline, real physics",
+    "targets": 1,
+    "cruiseSeconds": 18
+  },
+  "normal": {
+    "targetDurationMinutes": [6, 10],
+    "cruiseSeconds": 45
+  },
+  "budgetAdjustment": {
+    "original": 100,
+    "current": 112,
+    "reason": "Geology instruments and explicit 10-credit launch service require 111.8 credits."
+  },
+  "missions": {
+    "earth": {
+      "classification": "Fictional circular-orbit deployment scenario; derived orbital values use sourced Earth GM/radius",
+      "orbitAltitudeM": 400000,
+      "localControl": "attitude RCS, then integrated reaction wheels after cruise-stage separation"
+    },
+    "moon": {
+      "classification": "Fictional airless descent and stationary science mission",
+      "gravityReferenceSourceId": "moon",
+      "gravityMs2": 1.62,
+      "densityKgM3": 0,
+      "initialAltitudeM": 500,
+      "initialVerticalVelocityMs": -8,
+      "illustrativeTravelSeconds": 259200
+    },
+    "mars": {
+      "classification": "Existing rover campaign; idealized circular coplanar transfer and simplified local atmosphere",
+      "gravityReferenceSourceId": "mars",
+      "gravityMs2": 3.73,
+      "initialAltitudeM": 500,
+      "initialVerticalVelocityMs": -12
+    },
+    "asteroid": {
+      "classification": "Entirely fictional VY-26 scenario; no real asteroid ephemeris or GM",
+      "illustrativeTravelSeconds": 3110400,
+      "referenceEarthRangeM": 18000000000,
+      "localGravityMs2": 0,
+      "densityKgM3": 0,
+      "rcsThrustPerAxisN": 25,
+      "keepOutRadiusM": 10,
+      "scienceCorridorRadiusM": 5,
+      "scienceSpeedLimitMs": 0.35
+    }
+  }
+}
