@@ -43,6 +43,7 @@ import {
   Power,
 } from "lucide-react";
 import { useGame } from "./store";
+import * as THREE from "three";
 import { engine, neutral, transfer, score, type Stage } from "./sim/game";
 import {
   fixedAdvance,
@@ -222,6 +223,9 @@ function Scene() {
             powerPreference: "high-performance",
           }}
           onCreated={({ gl }) => {
+            gl.toneMapping = THREE.ACESFilmicToneMapping;
+            gl.toneMappingExposure = 1.05;
+            gl.outputColorSpace = THREE.SRGBColorSpace;
             gl.domElement.addEventListener("webglcontextlost", (e) => {
               e.preventDefault();
               setLost(true);

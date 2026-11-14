@@ -160,6 +160,63 @@ function Dust() {
     </points>
   );
 }
+function RoverDust() {
+  const ref = useRef<THREE.Group>(null);
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 18 }, (_, i) => ({
+        side: i % 2 === 0 ? -1 : 1,
+        spread: 0.35 + (i % 6) * 0.18,
+        lift: 0.08 + (i % 5) * 0.05,
+        phase: i * 1.7,
+      })),
+    [],
+  );
+  useFrame(({ clock }) => {
+    const r = engine.data.rover;
+    const speed = Math.abs(r.speed);
+    if (!ref.current) return;
+    const active = engine.data.destination === "mars" && speed > 0.08;
+    ref.current.visible = active;
+    if (!active) return;
+    const t = clock.getElapsedTime();
+    const intensity = Math.min(1, speed / 2.5);
+    const backwardX = -Math.cos(r.heading);
+    const backwardZ = -Math.sin(r.heading);
+    ref.current.children.forEach((child, i) => {
+      const p = particles[i];
+      const age = (t * (0.32 + intensity * 0.45) + p.phase) % 1;
+      const distance = 0.35 + age * (1.3 + intensity * 1.8);
+      const sideX = Math.sin(r.heading) * p.side * (p.spread + age * 0.55);
+      const sideZ = -Math.cos(r.heading) * p.side * (p.spread + age * 0.55);
+      const x = r.x + backwardX * distance + sideX;
+      const z = r.z + backwardZ * distance + sideZ;
+      child.position.set(
+        x,
+        terrainHeight(x, z) + p.lift + age * (0.25 + intensity * 0.35),
+        z,
+      );
+      const size = (0.08 + (1 - age) * 0.18) * intensity;
+      child.scale.setScalar(size);
+      child.rotation.y = t * 0.7 + p.phase;
+    });
+  });
+  return (
+    <group ref={ref} visible={false}>
+      {particles.map((p) => (
+        <mesh key={p.phase}>
+          <sphereGeometry args={[1, 8, 6]} />
+          <meshBasicMaterial
+            color="#d3a27e"
+            transparent
+            opacity={0.22}
+            depthWrite={false}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
 export default function World() {
   const destination = useGame((s) => s.data.destination);
   const gravity = destination === "moon" ? C.moonGravity : C.marsGravity;
@@ -230,20 +287,27 @@ export default function World() {
     if (stage === "landing") {
       const h = Math.max(0, l.y - terrainHeight(l.x, l.z));
       const zoom = settings.flightZoom || 1;
+      const moonLanding = destination === "moon";
       const pos = new THREE.Vector3(
         l.x +
-          (settings.flightCamera === "overview"
-            ? 100
+          (moonLanding
+            ? 145
+            : settings.flightCamera === "overview"
+              ? 100
             : Math.min(45, h * 0.08 + 16)) *
             zoom,
         l.y +
-          (settings.flightCamera === "overview"
-            ? 80
+          (moonLanding
+            ? 105
+            : settings.flightCamera === "overview"
+              ? 80
             : Math.min(70, h * 0.15 + 9)) *
             zoom,
         l.z +
-          (settings.flightCamera === "overview"
-            ? 120
+          (moonLanding
+            ? 175
+            : settings.flightCamera === "overview"
+              ? 120
             : Math.max(26, h * 0.42)) *
             zoom,
       );
@@ -255,7 +319,11 @@ export default function World() {
         pos.z = l.z + dx * Math.sin(angle) + dz * Math.cos(angle);
       }
       camera.position.lerp(pos, 1 - Math.exp(-dt * 3));
-      cameraTarget.current.set(l.x, l.y - h * 0.22 - 2, l.z);
+      cameraTarget.current.set(
+        l.x,
+        moonLanding ? terrainHeight(l.x, l.z) : l.y - 0.35,
+        l.z,
+      );
       camera.lookAt(cameraTarget.current);
     } else if (destination === "moon" && settings.camera !== "orbit") {
       const zoom = settings.flightZoom || 1;
@@ -368,6 +436,7 @@ export default function World() {
       )}
       <Terrain />
       {stage === "surface" && <RoverTracks />}
+      {stage === "surface" && <RoverDust />}
       <Rocks />
       <Mountains />
       {settings.quality !== "low" && destination === "mars" && <Dust />}

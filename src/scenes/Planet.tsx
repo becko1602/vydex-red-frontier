@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useGame } from "../store";
-const files = {
+import type { SolarBodyId } from "../data/solarSystem";
+const files: Partial<Record<SolarBodyId, string>> = {
   mars: "/assets/planets/mars.jpg",
   earth: "/assets/planets/earth.jpg",
   sun: "/assets/planets/sun.jpg",
@@ -10,6 +11,18 @@ const files = {
   venus: "/assets/planets/venus.jpg",
   jupiter: "/assets/planets/jupiter.jpg",
   saturn: "/assets/planets/saturn.jpg",
+};
+const planetTints: Record<SolarBodyId, string> = {
+  sun: "#ffd34f",
+  mercury: "#9b8e82",
+  venus: "#d9a85d",
+  earth: "#4b91ba",
+  mars: "#b9573e",
+  moon: "#aaa9a3",
+  jupiter: "#bd9675",
+  saturn: "#c5a96f",
+  uranus: "#74c7c9",
+  neptune: "#4d79c7",
 };
 // Optional image loading leaves a colored sphere visible if an asset cannot load.
 function useLocalMap(url: string | null, color = true) {
@@ -45,11 +58,11 @@ export function Planet({
   radius = 1,
   spin = true,
 }: {
-  kind: keyof typeof files;
+  kind: SolarBodyId;
   radius?: number;
   spin?: boolean;
 }) {
-  const map = useLocalMap(files[kind]);
+  const map = useLocalMap(files[kind] ?? null);
   const venusClouds = useMemo(() => {
     if (kind !== "venus") return null;
     const c = document.createElement("canvas");
@@ -107,23 +120,7 @@ export function Planet({
         ) : (
           <meshStandardMaterial
             map={map}
-            color={
-              map
-                ? kind === "mars"
-                  ? "#caa48f"
-                  : kind === "moon"
-                    ? "#aaaaaa"
-                    : "#ffffff"
-                : {
-                    earth: "#4d83b1",
-                    moon: "#aaa9a3",
-                    mars: "#bf7658",
-                    venus: "#d4bd8e",
-                    jupiter: "#c8b099",
-                    saturn: "#c3b18d",
-                    sun: "#ffb86c",
-                  }[kind]
-            }
+            color={planetTints[kind]}
             roughness={kind === "earth" ? 0.7 : 0.96}
             metalness={0}
             bumpMap={kind === "mars" ? bump : null}

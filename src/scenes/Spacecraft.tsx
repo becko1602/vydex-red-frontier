@@ -1,5 +1,5 @@
 import { useRef, useLayoutEffect } from "react";
-import { Html } from "@react-three/drei";
+import { Html, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Design } from "../data/gameBalance";
@@ -45,20 +45,28 @@ export function PartGeometry({
   if (id === "body")
     return (
       <group>
-        <mesh castShadow>
-          <cylinderGeometry args={[1.12, 1.12, 1.15, 8]} />
+        <RoundedBox args={[2.12, 1.16, 1.86]} radius={0.12} smoothness={4} castShadow>
           {mat("#d5d9d8")}
-        </mesh>
-        <mesh position={[0, -0.32, 0]}>
-          <cylinderGeometry args={[1.14, 1.14, 0.22, 8]} />
+        </RoundedBox>
+        <RoundedBox args={[2.14, 0.16, 1.88]} radius={0.05} smoothness={3} position={[0, -0.5, 0]}>
           {mat("#ae8e4b", 0.75)}
+        </RoundedBox>
+        <mesh position={[0, 0.59, 0]}>
+          <boxGeometry args={[1.74, 0.025, 1.44]} />
+          {mat("#283a42", 0.65)}
         </mesh>
-        {[-1, 1].map((x) => (
-          <mesh key={x} position={[x * 1.04, 0.08, 0]}>
-            <boxGeometry args={[0.04, 0.65, 1.1]} />
-            {mat("#303d45")}
-          </mesh>
-        ))}
+        {[-1, 1].map((x) => <mesh key={x} position={[x * 1.03, 0.06, 0]}>
+          <boxGeometry args={[0.045, 0.72, 1.32]} />
+          {mat("#38484c", 0.65)}
+        </mesh>)}
+        {[-0.48, 0, 0.48].map((z) => <mesh key={z} position={[0, 0.61, z]}>
+          <boxGeometry args={[1.42, 0.012, 0.018]} />
+          {mat("#9ab6b7", 0.55)}
+        </mesh>)}
+        {[-1, 1].flatMap(x => [-1, 1].map(z => <mesh key={`${x}:${z}`} position={[x * .88, .61, z * .68]}>
+          <sphereGeometry args={[.035, 8, 6]} />
+          {mat("#d2b071", .7)}
+        </mesh>))}
       </group>
     );
   if (id === "tank")
@@ -177,6 +185,14 @@ export function PartGeometry({
             roughness={0.5}
           />
         </mesh>
+        <mesh position={[0, 0.18, 0.06]}>
+          <cylinderGeometry args={[0.035, 0.035, 0.38, 12]} />
+          {mat("#788b8d", 0.75)}
+        </mesh>
+        <mesh position={[0, 0.38, 0.06]}>
+          <sphereGeometry args={[0.07, 12, 8]} />
+          {mat("#b8c5c2", 0.65)}
+        </mesh>
       </group>
     );
   if (id === "camera")
@@ -186,16 +202,19 @@ export function PartGeometry({
           <cylinderGeometry args={[0.04, 0.055, 0.8, 8]} />
           {mat("#63727a")}
         </mesh>
-        <mesh>
-          <boxGeometry args={[0.7, 0.24, 0.25]} />
+        <RoundedBox args={[0.72, 0.3, 0.3]} radius={0.06} smoothness={3}>
           {mat()}
-        </mesh>
+        </RoundedBox>
         {[-0.2, 0.2].map((x) => (
           <mesh key={x} position={[x, 0, -0.14]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.08, 0.08, 0.05, 16]} />
             {mat("#183346", 0.7)}
           </mesh>
         ))}
+        <mesh position={[0, 0, -0.18]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.18, 0.18, 0.025, 24]} />
+          {mat("#111d25", 0.8)}
+        </mesh>
       </group>
     );
   if (id === "drill" || id === "sampler")
@@ -211,26 +230,16 @@ export function PartGeometry({
         </mesh>
       </group>
     );
+  const boxSize = id === "computer" ? [0.52, 0.35, 0.56] : id === "battery" ? [0.6, 0.34, 0.6] : [0.4, 0.5, 0.4];
   return (
     <group>
-      <mesh>
-        <boxGeometry
-          args={
-            id === "computer"
-              ? [0.52, 0.35, 0.56]
-              : id === "battery"
-                ? [0.6, 0.34, 0.6]
-                : [0.4, 0.5, 0.4]
-          }
-        />
-        {mat(
-          id === "spectrometer"
-            ? "#80bac6"
-            : id === "battery"
-              ? "#415451"
-              : "#283d4d",
-        )}
-      </mesh>
+      <RoundedBox args={boxSize as [number, number, number]} radius={0.06} smoothness={3}>
+        {mat(id === "spectrometer" ? "#80bac6" : id === "battery" ? "#415451" : "#283d4d")}
+      </RoundedBox>
+      {id === "battery" && [-1, 1].map(x => <mesh key={x} position={[x * .18, .18, 0]}>
+        <boxGeometry args={[.045, .025, .32]} />
+        {mat("#a7c7bd", .45)}
+      </mesh>)}
       <mesh position={[0, 0.19, 0]}>
         <boxGeometry args={[0.2, 0.025, 0.3]} />
         <meshStandardMaterial
