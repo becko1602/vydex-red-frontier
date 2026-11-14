@@ -182,7 +182,22 @@ header nav div {
   color: #8e969b;
   font-size: 10px;
 }
-header nav div > span {
+header nav .stage-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  cursor: default;
+}
+header nav .stage-button:not(:disabled) {
+  cursor: pointer;
+}
+header nav .stage-button:disabled {
+  opacity: 1;
+}
+header nav .stage-button > span {
   width: 20px;
   height: 20px;
   display: grid;

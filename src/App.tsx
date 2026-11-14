@@ -305,6 +305,9 @@ function Header() {
     open = useGame((s) => s.open),
     pause = useGame((s) => s.pause),
     setSettings = useGame((s) => s.setSettings);
+  const currentStageIndex = stages.indexOf(
+    d.stage === "orbit" ? "surface" : d.stage,
+  );
   return (
     <header>
       <a
@@ -330,16 +333,30 @@ function Header() {
         {stageNames.map((name, i) => (
           <div
             key={name}
-            className={`${i === stages.indexOf(d.stage === "orbit" ? "surface" : d.stage) ? "current" : ""} ${i < stages.indexOf(d.stage === "orbit" ? "surface" : d.stage) ? "complete" : ""}`}
+            className={`${i === currentStageIndex ? "current" : ""} ${i < currentStageIndex ? "complete" : ""}`}
           >
-            <span>
-              {i < stages.indexOf(d.stage === "orbit" ? "surface" : d.stage) ? (
-                <Check size={10} />
-              ) : (
-                String(i + 1).padStart(2, "0")
-              )}
-            </span>
-            <b>{name}</b>
+            <button
+              type="button"
+              className="stage-button"
+              disabled={i >= currentStageIndex}
+              aria-label={
+                i < currentStageIndex
+                  ? `Return to completed stage ${name}`
+                  : `${name} stage`
+              }
+              onClick={() =>
+                useGame.getState().act(() => engine.go(stages[i]))
+              }
+            >
+              <span>
+                {i < currentStageIndex ? (
+                  <Check size={10} />
+                ) : (
+                  String(i + 1).padStart(2, "0")
+                )}
+              </span>
+              <b>{name}</b>
+            </button>
             {i < stages.length-1 && <i />}
           </div>
         ))}
