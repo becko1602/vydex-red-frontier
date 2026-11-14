@@ -237,13 +237,7 @@ function Scene() {
           }}
         >
           <Suspense
-            fallback={
-              <Html center>
-                <div className="scene-loading">
-                  <span className="spinner" /> PREPARING MISSION SCENE…
-                </div>
-              </Html>
-            }
+            fallback={null}
           >
             {settings.inspection ? (<Hangar inspection />) : active==='rocket' ? (<RocketHangar/>) : ["assembly", "preflight"].includes(active) ? (
               <Hangar />

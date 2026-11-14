@@ -7,6 +7,7 @@ import {
   type FlightData,
 } from "./sim/game";
 import type { PartId } from "./data/workshop";
+import type { SolarBodyId } from "./data/solarSystem";
 export type Settings = {
   flightCamera: "follow" | "cinematic" | "overview";
   cameraShake: boolean;
@@ -23,6 +24,10 @@ export type Settings = {
   volume: number;
   reducedMotion: boolean;
   camera: "chase" | "orbit" | "map";
+  showOrbits: boolean;
+  showLabels: boolean;
+  showTrajectory: boolean;
+  selectedPlanet: SolarBodyId;
 };
 export type TutorialState = {
   destination: string;
@@ -145,6 +150,10 @@ export const useGame = create<UI>((set, get) => ({
     volume: 0.3,
     reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
     camera: "chase",
+    showOrbits: true,
+    showLabels: true,
+    showTrajectory: true,
+    selectedPlanet: "mars",
     ...savedSettings,
     inspection:false,
   },

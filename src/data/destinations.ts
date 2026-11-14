@@ -1,6 +1,15 @@
 import { C } from "./scienceConstants";
 export type DestinationId =
-  "earth" | "moon" | "mars" | "asteroid" | "venus" | "jupiter" | "saturn";
+  | "earth"
+  | "moon"
+  | "mars"
+  | "asteroid"
+  | "mercury"
+  | "venus"
+  | "jupiter"
+  | "saturn"
+  | "uranus"
+  | "neptune";
 export type PlayableDestination = "earth" | "moon" | "mars" | "asteroid";
 export const destinations: Record<
   DestinationId,
@@ -63,40 +72,77 @@ export const destinations: Record<
     difference:
       "Fictional 36-day near-Earth scenario. Local relative motion assumes negligible gravity and no drag; even small thrust changes your drift.",
   },
+  mercury: {
+    name: "MERCURY",
+    subtitle: "ORBITAL HEAT",
+    color: "#b7a18d",
+    playable: false,
+    difficulty: "Probe preview",
+    minutes: "Orbiter",
+    objective:
+      "Plan a heat-resistant probe to map Mercury's surface and measure its exosphere from orbit.",
+    difference:
+      "A close solar orbit creates extreme thermal and communications constraints. This campaign uses an orbiter, not a rover landing.",
+  },
   venus: {
     name: "VENUS",
-    subtitle: "EDUCATIONAL PREVIEW",
+    subtitle: "CLOUD OCEAN",
     color: "#e5be7c",
     playable: false,
-    difficulty: "Preview only",
-    minutes: "Viewer",
+    difficulty: "Probe preview",
+    minutes: "Orbiter",
     objective:
-      "Inspect the cloud-covered planet. A playable mission is not included.",
+      "Plan a radar and atmospheric probe to study Venus beneath its permanent cloud cover.",
     difference:
-      "A dense atmosphere and extreme surface conditions require a different spacecraft. This destination is a clearly labeled preview.",
+      "A dense atmosphere and extreme surface conditions require a dedicated probe architecture. No Mars-style rover landing is shown.",
   },
   jupiter: {
     name: "JUPITER",
-    subtitle: "EDUCATIONAL PREVIEW",
+    subtitle: "THE GAS GIANT",
     color: "#d8baa3",
     playable: false,
-    difficulty: "Preview only",
-    minutes: "Viewer",
+    difficulty: "Probe preview",
+    minutes: "Orbiter",
     objective:
-      "Inspect the banded gas giant. A playable mission is not included.",
+      "Plan a radiation-hardened orbiter to observe Jupiter's atmosphere and magnetosphere.",
     difference:
-      "A gas giant has no solid surface for this lander. This is an educational visual preview, not an available landing mission.",
+      "Jupiter has no solid surface. The mission model is orbital observation, not landing or surface sampling.",
   },
   saturn: {
     name: "SATURN",
-    subtitle: "EDUCATIONAL PREVIEW",
+    subtitle: "RINGS OF ICE",
     color: "#d4c699",
     playable: false,
-    difficulty: "Preview only",
-    minutes: "Viewer",
-    objective: "Inspect the ringed world. A playable mission is not included.",
+    difficulty: "Probe preview",
+    minutes: "Orbiter",
+    objective:
+      "Plan an orbiter to survey Saturn's rings, atmosphere and major moons.",
     difference:
-      "The ring system is shown at an illustrative scale. A suitable orbiter mission is outside this campaign.",
+      "The ring system is shown at an illustrative scale. No solid planetary surface exists for a Mars-style landing.",
+  },
+  uranus: {
+    name: "URANUS",
+    subtitle: "THE TILTED WORLD",
+    color: "#9fc9cf",
+    playable: false,
+    difficulty: "Probe preview",
+    minutes: "Orbiter",
+    objective:
+      "Plan a distant orbiter to measure Uranus's atmosphere, rings and unusual axial tilt.",
+    difference:
+      "A long-duration outer-planet mission depends on power, communications and thermal planning rather than landing.",
+  },
+  neptune: {
+    name: "NEPTUNE",
+    subtitle: "DEEP BLUE FRONTIER",
+    color: "#7297d1",
+    playable: false,
+    difficulty: "Probe preview",
+    minutes: "Orbiter",
+    objective:
+      "Plan a deep-space probe to observe Neptune's winds, atmosphere and ring system.",
+    difference:
+      "Neptune is a gas giant with no solid surface. The educational mission model is a long-range flyby or orbiter.",
   },
 };
 export function environment(destination: DestinationId) {

@@ -9,6 +9,11 @@ import {
 import { C } from "../data/scienceConstants";
 import {
   batteryStep,
+  BATTERY_CAPACITY_WH,
+  CRUISE_GENERATION_W,
+  CRUISE_HIBERNATE_LOAD_W,
+  CRUISE_POWER_EPISODE_SECONDS,
+  CRUISE_SCIENCE_LOAD_W,
   clamp,
   communicationDelay,
   initialLander,
@@ -174,6 +179,10 @@ export class MissionEngine {
   go(stage: Stage) {
     this.data.stage = stage;
     this.data.stageTime = 0;
+    if (stage === "cruise") {
+      this.data.generation = CRUISE_GENERATION_W;
+      this.data.load = CRUISE_HIBERNATE_LOAD_W;
+    }
     if (stage === "landing") {
       this.data.lander = initialLander(this.data.design, this.data.destination);
       this.data.landingStarted = false;
@@ -228,14 +237,30 @@ export class MissionEngine {
     if (d.cruiseChoice !== "pending") return;
     d.cruiseChoice = choice;
     const baseline = d.battery,
-      generation = 45,
-      dt = 7200;
-    const save = batteryStep(baseline, 600, generation, 28, dt),
-      science = batteryStep(baseline, 600, generation, 100, dt);
+      generation = CRUISE_GENERATION_W,
+      dt = CRUISE_POWER_EPISODE_SECONDS;
+    const save = batteryStep(
+        baseline,
+        BATTERY_CAPACITY_WH,
+        generation,
+        CRUISE_HIBERNATE_LOAD_W,
+        dt,
+      ),
+      science = batteryStep(
+        baseline,
+        BATTERY_CAPACITY_WH,
+        generation,
+        CRUISE_SCIENCE_LOAD_W,
+        dt,
+      );
     d.battery = choice === "save" ? save : science;
-    d.load=choice==='save'?28:100;d.generation=45;
-    d.energyUsed += (choice === "save" ? 28 : 100) * 2;
-    d.energyGenerated += 90;
+    d.load =
+      choice === "save" ? CRUISE_HIBERNATE_LOAD_W : CRUISE_SCIENCE_LOAD_W;
+    d.generation = CRUISE_GENERATION_W;
+    d.energyUsed +=
+      (choice === "save" ? CRUISE_HIBERNATE_LOAD_W : CRUISE_SCIENCE_LOAD_W) *
+      (dt / 3600);
+    d.energyGenerated += generation * (dt / 3600);
     d.decisionLog.push(
       choice === "save"
         ? "Hibernated during cruise: preserved surface battery."
@@ -593,7 +618,7 @@ export class MissionEngine {
     d.energyGenerated += (generation * dt) / 3600;
     d.battery = batteryStep(
       d.battery,
-      d.design.battery ? 600 : 0,
+      d.design.battery ? BATTERY_CAPACITY_WH : 0,
       generation,
       load,
       dt,

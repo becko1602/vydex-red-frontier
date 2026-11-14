@@ -10,7 +10,18 @@ import {
 import { missionStarter, emptyDesign } from "../data/workshop";
 import { recommendedLauncher } from "../data/launchVehicles";
 import type { Objective } from "../data/gameBalance";
-const availableDestinations: DestinationId[] = ["moon", "mars", "asteroid"];
+const availableDestinations: DestinationId[] = [
+  "earth",
+  "moon",
+  "mars",
+  "asteroid",
+  "mercury",
+  "venus",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+];
 export default function DestinationBriefing() {
   const d = useGame((s) => s.data),
     act = useGame((s) => s.act),

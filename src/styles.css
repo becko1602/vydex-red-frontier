@@ -3111,6 +3111,8 @@ footer i:not(.status-dot) {
   display: flex;
   gap: 8px;
   padding: 12px;
+  overflow-x: auto;
+  scrollbar-color: #54717e transparent;
   background: #07111c9e;
   border: 1px solid #94bbce2b;
   border-radius: 5px;
@@ -3173,6 +3175,29 @@ footer i:not(.status-dot) {
   clip-path: polygon(21% 7%, 68% 2%, 96% 28%, 91% 72%, 64% 100%, 17% 86%, 2% 43%);
   background: radial-gradient(circle at 28% 24%, #d9d1bb, #8f897c 45%, #484b4a 75%, #222a30);
   box-shadow: inset -4px -4px 6px #101823aa, 2px 3px 7px #09121d;
+}
+.icon-mercury {
+  background: radial-gradient(circle at 30% 25%, #e0d0bf, #8b796b 55%, #302c2e);
+}
+.icon-venus {
+  background: radial-gradient(circle at 30% 25%, #fff0ba, #d49a55 52%, #633c2c);
+}
+.icon-jupiter {
+  background: repeating-linear-gradient(
+    8deg,
+    #c29d7e 0 3px,
+    #ead0a9 3px 6px,
+    #8e6658 6px 9px
+  );
+}
+.icon-saturn {
+  background: radial-gradient(circle at 35% 30%, #eee0ad, #a18b68 65%, #4d4438);
+}
+.icon-uranus {
+  background: radial-gradient(circle at 30% 25%, #dcffff, #83bdc5 58%, #31566a);
+}
+.icon-neptune {
+  background: radial-gradient(circle at 30% 25%, #b4d1ff, #456db0 58%, #182c5b);
 }
 .lunar-drive-controls{position:absolute;right:42px;top:125px;display:grid;gap:10px;min-width:200px;padding:12px;background:#0a1926e8;border:1px solid #8dc7cd55;color:#cbe1e8;font:11px monospace;pointer-events:auto;z-index:7}
 .lunar-drive-controls .camera-buttons{display:flex;gap:5px}
@@ -4446,6 +4471,92 @@ footer i:not(.status-dot) {
   overflow-y: auto;
   scrollbar-width: thin;
 }
+.power-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 12px;
+  margin: 14px 0 16px;
+  padding: 11px 0;
+  border-top: 1px solid #ffffff1a;
+  border-bottom: 1px solid #ffffff1a;
+  color: #a9c1c8;
+  font: 10px/1.5 monospace;
+}
+.power-summary b {
+  color: #f0eee7;
+  text-align: right;
+}
+.power-summary .positive {
+  color: #9de0c0;
+}
+.power-summary .negative {
+  color: #f39b78;
+}
+.transfer-toggles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin: 12px 0;
+}
+.planet-selection {
+  margin: 14px 0;
+  padding-top: 12px;
+  border-top: 1px solid #ffffff1a;
+}
+.planet-selection > .event-tag {
+  display: block;
+  margin-bottom: 8px;
+}
+.planet-selection > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.planet-selection button {
+  padding: 6px 8px;
+  border: 1px solid #7da8b344;
+  border-radius: 3px;
+  color: #a9c5cc;
+  font: 9px monospace;
+  text-transform: uppercase;
+}
+.planet-selection button:hover,
+.planet-selection button.active {
+  color: #f3f5ef;
+  border-color: #f07845aa;
+  background: #f078451c;
+}
+.planet-selection small {
+  display: block;
+  margin-top: 8px;
+  color: #95adb5;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.transfer-toggles .event-tag {
+  grid-column: 1 / -1;
+}
+.transfer-toggles .toggle-row {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.3;
+}
+.mission-log {
+  margin: 14px 0;
+  padding-top: 12px;
+  border-top: 1px solid #ffffff1a;
+  color: #bdd3d9;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.mission-log summary {
+  cursor: pointer;
+  color: #d8edf0;
+  font-family: monospace;
+}
+.mission-log p {
+  margin: 7px 0 0;
+}
 .app:has(.journey-ui) .tutorial-card {
   left: 42px;
   right: auto;
@@ -4466,6 +4577,15 @@ footer i:not(.status-dot) {
   .journey-ui .cruise-panel {
     max-height: none;
     overflow-y: visible;
+  }
+  .power-summary {
+    font-size: 9px;
+  }
+  .transfer-toggles {
+    grid-template-columns: 1fr;
+  }
+  .transfer-toggles .event-tag {
+    grid-column: auto;
   }
   .app .tutorial-card,
   .app:has(.journey-ui) .tutorial-card,

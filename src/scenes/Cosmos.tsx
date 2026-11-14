@@ -1,6 +1,6 @@
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Stars, Line, Html, OrbitControls } from "@react-three/drei";
+import { Stars, Line, Text, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Planet } from "./Planet";
 import { Asteroid } from "./Asteroid";
@@ -12,6 +12,59 @@ import { planetPositions, transferPosition, clamp } from "../sim/physics";
 import { payloadEnvelope } from "../sim/payload";
 import { launchFraction } from "../sim/journey";
 import { solarSystem } from "../data/solarSystem";
+import {
+  heliocentricBodyIds,
+  heliocentricPosition,
+  type HeliocentricBodyId,
+} from "../sim/heliocentric";
+function SceneLabel({
+  children,
+  position,
+  color = "#d7e8eb",
+  fontSize = 0.18,
+}: {
+  children: ReactNode;
+  position: [number, number, number];
+  color?: string;
+  fontSize?: number;
+}) {
+  return (
+    <Text
+      position={position}
+      color={color}
+      fontSize={fontSize}
+      anchorX="center"
+      anchorY="middle"
+      depthOffset={-1}
+    >
+      {children}
+    </Text>
+  );
+}
+function OrbitDirectionArrow({
+  radius,
+  angle,
+  color,
+  scale = 1,
+}: {
+  radius: number;
+  angle: number;
+  color: string;
+  scale?: number;
+}) {
+  return (
+    <group
+      position={[radius * Math.cos(angle), 0.02, radius * Math.sin(angle)]}
+      rotation={[0, angle + Math.PI / 2, 0]}
+      scale={scale}
+    >
+      <mesh rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.12, 0.42, 8]} />
+        <meshBasicMaterial color={color} />
+      </mesh>
+    </group>
+  );
+}
 function LaunchPadSupports({ height, active }: { height: number; active: boolean }) {
   const ref = useRef<THREE.Group>(null),
     offset = useRef(0);
@@ -214,17 +267,17 @@ function Travel() {
     target = useMemo(() => new THREE.Vector3(), []),
     cam = useMemo(() => new THREE.Vector3(), []),
     scale = 8 / transfer.r2;
-  const previewPlanets = useMemo(
-    () => [
-      { kind: "mercury" as const, radius: 0.42, orbit: 3.2, phase: 0.6, inclination: 0.03 },
-      { kind: "venus" as const, radius: 0.7, orbit: 5.3, phase: 1.8, inclination: 0.059 },
-      { kind: "jupiter" as const, radius: 1.15, orbit: 13.5, phase: 2.5, inclination: 0.023 },
-      { kind: "saturn" as const, radius: 0.95, orbit: 18.5, phase: 4.1, inclination: 0.044 },
-      { kind: "uranus" as const, radius: 0.72, orbit: 24, phase: 5.1, inclination: 0.014 },
-      { kind: "neptune" as const, radius: 0.68, orbit: 29, phase: 5.7, inclination: 0.031 },
-    ],
-    [],
-  );
+  const visualElapsed = d.cruiseProgress * transfer.time;
+  const displayOrbitRadius: Record<HeliocentricBodyId, number> = {
+    mercury: 3.2,
+    venus: 5.3,
+    earth: 6.1,
+    mars: 8,
+    jupiter: 13.5,
+    saturn: 18.5,
+    uranus: 24,
+    neptune: 29,
+  };
   const path = useMemo(
     () =>
       Array.from({ length: 121 }, (_, i) => {
@@ -321,7 +374,31 @@ function Travel() {
     }
     ship.current?.position.copy(target);
     if (ship.current) ship.current.rotation.y = 0.4 + f * Math.PI;
-    if (settings.flightCamera === "overview") return;
+    if (settings.flightCamera === "overview") {
+      const selected = settings.selectedPlanet;
+      if (selected === "earth" || selected === "mars") {
+        const selectedPoint =
+          selected === "earth"
+            ? planetPositions(f).earth
+            : planetPositions(f).mars;
+        target.set(selectedPoint.x * scale, 0, selectedPoint.z * scale);
+      } else if (selected !== "sun" && selected !== "moon") {
+        const selectedPoint = heliocentricPosition(
+          selected as HeliocentricBodyId,
+          visualElapsed,
+        );
+        const selectedRadius = displayOrbitRadius[selected as HeliocentricBodyId];
+        target.set(
+          selectedRadius * Math.cos(selectedPoint.angle),
+          selectedRadius * Math.sin(selectedPoint.angle) * 0.06,
+          selectedRadius * Math.sin(selectedPoint.angle),
+        );
+      } else {
+        target.set(0, 0, 0);
+      }
+      camera.lookAt(target);
+      return;
+    }
     const z = settings.flightZoom || 1;
     if (settings.flightCamera === "follow")
       cam.set(target.x + 1.8 * z, target.y + 1.2 * z, target.z + 3.2 * z);
@@ -344,51 +421,110 @@ function Travel() {
       {d.destination === "mars" ? (
         <>
           <Planet kind="sun" radius={1.4} spin={false} />
+          {settings.showLabels && (
+            <SceneLabel
+              position={[0, 1.8, 0]}
+              color="#f0c77b"
+              fontSize={0.2}
+            >
+              SUN · ORBITAL FOCUS
+            </SceneLabel>
+          )}
           <pointLight intensity={65} color="#ffd34f" distance={45} />
-          <Line points={orbit(transfer.r1 * scale)} color="#40646f" rotation={[0.032, 0, 0]} />
-          <Line points={orbit(8)} color="#8d6554" rotation={[0.032, 0, 0]} />
-          {previewPlanets.map((planet) => {
-            const x = Math.cos(planet.phase) * planet.orbit;
-            const z = Math.sin(planet.phase) * planet.orbit;
-            const position = inclinedPosition(x, z, planet.inclination);
+          {settings.showOrbits && (
+            <>
+              <Line
+                points={orbit(transfer.r1 * scale)}
+                color="#4b9ab0"
+                lineWidth={1.2}
+                rotation={[0.032, 0, 0]}
+              />
+              <Line
+                points={orbit(transfer.r2 * scale)}
+                color="#c66d4e"
+                lineWidth={1.2}
+                rotation={[0.032, 0, 0]}
+              />
+              <OrbitDirectionArrow
+                radius={transfer.r1 * scale}
+                angle={1.25}
+                color="#78d2e0"
+                scale={0.9}
+              />
+              <OrbitDirectionArrow
+                radius={transfer.r2 * scale}
+                angle={2.25}
+                color="#f09a72"
+              />
+            </>
+          )}
+          {heliocentricBodyIds
+            .filter((body) => body !== "earth" && body !== "mars")
+            .map((body) => {
+            const positionM = heliocentricPosition(body, visualElapsed);
+            const displayRadius = displayOrbitRadius[body];
+            const position = {
+              x: displayRadius * Math.cos(positionM.angle),
+              y: displayRadius * Math.sin(positionM.angle) * 0.06,
+              z: displayRadius * Math.sin(positionM.angle),
+            };
+            const orbit = displayRadius;
+            const radius =
+              body === "jupiter"
+                ? 1.15
+                : body === "saturn"
+                  ? 0.95
+                  : body === "venus"
+                    ? 0.7
+                    : body === "mercury"
+                      ? 0.42
+                      : body === "uranus"
+                        ? 0.72
+                        : 0.68;
             return (
             <group
-              key={planet.kind}
+              key={body}
               position={[0, 0, 0]}
             >
-              <Line
-                points={previewOrbit(planet.orbit)}
-                color="#314b59"
-                transparent
-                opacity={0.58}
-                rotation={[planet.inclination, 0, 0]}
-              />
+              {settings.showOrbits && (
+                <Line
+                  points={previewOrbit(orbit)}
+                  color="#314b59"
+                  transparent
+                  opacity={0.58}
+                  rotation={[0.032, 0, 0]}
+                />
+              )}
               <group position={[position.x, position.y, position.z]}>
-                <Planet kind={planet.kind} radius={planet.radius} />
-                <Html position={[0, planet.radius + 0.35, 0]} center>
-                  <span className="space-label">
-                    {solarSystem[planet.kind].name.toUpperCase()}
-                  </span>
-                </Html>
+                <Planet kind={body} radius={radius} />
+                {settings.showLabels && (
+                  <SceneLabel position={[0, radius + 0.35, 0]}>
+                    {solarSystem[body].name.toUpperCase()}
+                  </SceneLabel>
+                )}
               </group>
             </group>
             );
           })}
         </>
       ) : null}
-      <Line
-        points={path}
-        color="#8ed5df"
-        lineWidth={1.4}
-        dashed
-        dashSize={0.12}
-        gapSize={0.08}
-      />
+      {settings.showTrajectory && (
+        <Line
+          points={path}
+          color="#8ed5df"
+          lineWidth={1.8}
+          dashed
+          dashSize={0.12}
+          gapSize={0.08}
+        />
+      )}
       <group ref={earth}>
         <Planet kind="earth" radius={d.destination === "mars" ? 0.82 : 2.2} />
-        <Html position={[0, d.destination === "mars" ? 1.15 : 2.7, 0]} center>
-          <span className="space-label">EARTH</span>
-        </Html>
+        {settings.showLabels && (
+          <SceneLabel position={[0, d.destination === "mars" ? 1.15 : 2.7, 0]}>
+            EARTH · DEPARTURE
+          </SceneLabel>
+        )}
       </group>
       {d.destination !== "earth" && (
         <group ref={destination}>
@@ -400,20 +536,30 @@ function Travel() {
               radius={d.destination === "moon" ? 0.9 : 0.76}
             />
           )}
-          <Html position={[0, d.destination === "moon" ? 1.35 : 1.15, 0]} center>
-            <span className="space-label">{d.destination.toUpperCase()}</span>
-          </Html>
+          {settings.showLabels && (
+            <SceneLabel
+              position={[0, d.destination === "moon" ? 1.35 : 1.15, 0]}
+            >
+              {d.destination.toUpperCase()} · ARRIVAL
+            </SceneLabel>
+          )}
         </group>
       )}
       <group ref={ship}>
         <Spacecraft design={d.design} scale={0.065} stowed/>
-        <Html position={[0, 0.35, 0]} center>
-          <span className="space-label">VYDEX–01</span>
-        </Html>
+        <mesh position={[0, 0, -0.22]}>
+          <sphereGeometry args={[0.12, 12, 8]} />
+          <meshBasicMaterial color="#f07845" />
+        </mesh>
+        {settings.showLabels && (
+          <SceneLabel position={[0, 0.35, 0]}>
+            VYDEX–01 · TRANSFER
+          </SceneLabel>
+        )}
       </group>
       {settings.flightCamera === "overview" && (
         <OrbitControls
-          target={[0, 0, 0]}
+            target={[0, 0, 0]}
           minDistance={5}
           maxDistance={30}
           maxPolarAngle={Math.PI * 0.49}
@@ -461,7 +607,17 @@ export default function Cosmos() {
             ) : (
               <Planet
                 kind={destination}
-                radius={destination === "saturn" ? 2.1 : 3.4}
+                radius={
+                  destination === "mercury"
+                    ? 2.4
+                    : destination === "venus"
+                      ? 3
+                      : destination === "saturn"
+                        ? 2.1
+                        : destination === "uranus" || destination === "neptune"
+                          ? 2.7
+                          : 3.4
+                }
               />
             )}
           </group>

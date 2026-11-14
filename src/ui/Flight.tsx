@@ -21,13 +21,31 @@ import {
   initialOrbit,
   earthOrbit,
 } from "../sim/orbit";
+import {
+  BATTERY_CAPACITY_WH,
+  CRUISE_GENERATION_W,
+  CRUISE_HIBERNATE_LOAD_W,
+  CRUISE_SCIENCE_LOAD_W,
+  remainingOperatingHours,
+} from "../sim/physics";
 import { parts, type PartId } from "../data/workshop";
 import { useState } from "react";
 import FlightTouch from "./FlightTouch";
 import {EngineControls} from "./Telemetry";
 import {openInspection} from "./Inspection";
 import {launchers} from "../data/launchVehicles";
+import { solarSystem, type SolarBodyId } from "../data/solarSystem";
 import TouchControls from "./TouchDrive";
+const selectablePlanets: SolarBodyId[] = [
+  "mercury",
+  "venus",
+  "earth",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+];
 export function FlightToolbar() {
   const d = useGame((s) => s.data),
     settings = useGame((s) => s.settings),
@@ -73,7 +91,7 @@ export function FlightToolbar() {
           >
             {[0.5, 1, 2, 4].map((rate) => (
               <option key={rate} value={rate}>
-                {rate}× presentation
+                {rate}× simulation speed
               </option>
             ))}
           </select>
@@ -193,11 +211,13 @@ export function LaunchPanel() {
 export function TravelPanel() {
   const d = useGame((s) => s.data),
     act = useGame((s) => s.act),
+    settings = useGame((s) => s.settings),
+    set = useGame((s) => s.setSettings),
     route = routeInfo(d);
   return (
     <main className="journey-ui">
       <section className="stage-intro travel-intro">
-        <p className="eyebrow">04 / CONNECTED TRANSFER</p>
+        <p className="eyebrow">06 / CONNECTED TRANSFER</p>
         <h1>
           Destination:
           <br />
@@ -236,7 +256,7 @@ export function TravelPanel() {
           BASE TIME COMPRESSION ×
           {Math.round(route.seconds / route.screenSeconds).toLocaleString()}
           <br />
-          VEHICLE / PLANET DISPLAY SIZES ENLARGED
+          VISUAL SCALE: ENLARGED FOR CLARITY · EDUCATIONAL MODEL
         </p>
       </section>
       <section className="mission-panel cruise-panel">
@@ -248,9 +268,10 @@ export function TravelPanel() {
           <span className="event-tag">DETERMINISTIC POWER EPISODE / 2 H</span>
           <h3>What stays awake?</h3>
           <p>
-            Fictional 45 W generation. Hibernate at 28 W, or preserve
-            calibration at 100 W for +50 points. Both alternatives are
-            calculated from your current battery.
+            Educational power episode: {CRUISE_GENERATION_W} W solar
+            generation for 2 h. Hibernation draws {CRUISE_HIBERNATE_LOAD_W} W;
+            science mode draws {CRUISE_SCIENCE_LOAD_W} W. Both outcomes are
+            calculated from the current battery.
           </p>
           <div className="choice-grid">
             <button
@@ -295,12 +316,73 @@ export function TravelPanel() {
           <span>BATTERY RESERVE</span>
           <strong>
             {d.battery.toFixed(0)}
-            <small>/ 600 Wh</small>
+            <small>/ {BATTERY_CAPACITY_WH} Wh</small>
           </strong>
         </div>
         <div className="meter">
-          <i style={{ width: `${d.battery / 6}%` }} />
+          <i style={{ width: `${(d.battery / BATTERY_CAPACITY_WH) * 100}%` }} />
         </div>
+        <div className="power-summary" aria-label="Power balance">
+          <span>+{d.generation.toFixed(0)} W generation</span>
+          <span>{d.load.toFixed(0)} W consumption</span>
+          <b className={d.generation - d.load >= 0 ? "positive" : "negative"}>
+            {d.generation - d.load >= 0 ? "+" : ""}
+            {(d.generation - d.load).toFixed(0)} W net
+          </b>
+          <span>
+            {Number.isFinite(remainingOperatingHours(d.battery, d.generation, d.load))
+              ? `${remainingOperatingHours(d.battery, d.generation, d.load).toFixed(1)} h remaining at current load`
+              : "Net-positive: battery charging"}
+          </span>
+        </div>
+        <div className="transfer-toggles">
+          <span className="event-tag">DISPLAY LAYERS</span>
+          {(
+            [
+              ["showOrbits", "Orbits"],
+              ["showLabels", "Labels"],
+              ["showTrajectory", "Transfer trajectory"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key} className="toggle-row">
+              <input
+                type="checkbox"
+                checked={settings[key]}
+                onChange={(e) => set({ [key]: e.target.checked })}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <div className="planet-selection">
+          <span className="event-tag">HELIOCENTRIC VIEW / SELECT BODY</span>
+          <div>
+            {selectablePlanets.map((body) => (
+              <button
+                key={body}
+                className={settings.selectedPlanet === body ? "active" : ""}
+                onClick={() =>
+                  set({ selectedPlanet: body, flightCamera: "overview" })
+                }
+                title={`Focus camera on ${solarSystem[body].name}`}
+              >
+                {solarSystem[body].name}
+              </button>
+            ))}
+          </div>
+          <small>
+            Rounded educational orbits share the transfer simulation clock.
+            Display radii are compressed for clarity.
+          </small>
+        </div>
+        {d.decisionLog.length > 0 && (
+          <details className="mission-log">
+            <summary>Mission event log ({d.decisionLog.length})</summary>
+            {d.decisionLog.slice(-4).map((event, index) => (
+              <p key={`${event}-${index}`}>{event}</p>
+            ))}
+          </details>
+        )}
         <button
           className="btn"
           disabled={d.cruiseProgress < 1 || !d.correction}

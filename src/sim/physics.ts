@@ -17,6 +17,11 @@ import { launchers } from "../data/launchVehicles";
 import { launcherFit } from "./payload";
 export const clamp = (v: number, a: number, b: number) =>
   Math.max(a, Math.min(b, v));
+export const BATTERY_CAPACITY_WH = 600;
+export const CRUISE_POWER_EPISODE_SECONDS = 2 * 3600;
+export const CRUISE_GENERATION_W = 45;
+export const CRUISE_HIBERNATE_LOAD_W = 28;
+export const CRUISE_SCIENCE_LOAD_W = 100;
 export function deltaV(isp: number, wet: number, dry: number) {
   return Number.isFinite(isp + wet + dry) && isp > 0 && dry > 0 && wet >= dry
     ? isp * C.g0 * Math.log(wet / dry)
@@ -204,6 +209,31 @@ export function batteryStep(
   dt: number,
 ) {
   return clamp(wh + ((generation - consumption) * dt) / 3600, 0, capacity);
+}
+export function propellantForDeltaV(
+  deltaVRequired: number,
+  isp: number,
+  initialMass: number,
+) {
+  if (
+    !Number.isFinite(deltaVRequired) ||
+    !Number.isFinite(isp) ||
+    !Number.isFinite(initialMass) ||
+    deltaVRequired < 0 ||
+    isp <= 0 ||
+    initialMass <= 0
+  )
+    return 0;
+  const finalMass = initialMass / Math.exp(deltaVRequired / (isp * C.g0));
+  return Math.max(0, initialMass - finalMass);
+}
+export function remainingOperatingHours(
+  batteryWh: number,
+  generationW: number,
+  consumptionW: number,
+) {
+  const deficit = consumptionW - generationW;
+  return deficit > 0 ? Math.max(0, batteryWh / deficit) : Infinity;
 }
 export function transferModel() {
   const r1 = C.earthOrbit,
