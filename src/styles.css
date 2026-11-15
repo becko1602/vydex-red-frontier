@@ -4714,3 +4714,10 @@ footer i:not(.status-dot) {
 .model-error b{font-size:12px}.model-error small{font:9px monospace;color:#f1b3a6}
 .loading-error{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);z-index:20}
 .loading small{font:9px monospace;margin-left:8px;opacity:.7}
+.mission-steps{list-style:none;margin:10px 0 14px;padding:10px 12px;border:1px solid #ffffff1c;border-radius:4px;background:#0b161ccc;display:grid;gap:8px}
+.mission-steps li{display:flex;gap:10px;align-items:flex-start;color:#7f969c}
+.mission-steps .mark{flex:0 0 20px;height:20px;border-radius:50%;display:grid;place-items:center;font:10px monospace;border:1px solid #ffffff2a}
+.mission-steps b{font:600 11px/1.4 system-ui,sans-serif;color:inherit}
+.mission-steps p{margin:4px 0 0;font:10.5px/1.5 system-ui,sans-serif;color:#d7e4e6}
+.mission-steps li.done{color:#9fd3a9}.mission-steps li.done .mark{border-color:#9fd3a9;background:#9fd3a91a}
+.mission-steps li.now{color:#ffd9b0}.mission-steps li.now .mark{border-color:#e7a26a;background:#e7a26a2a;color:#ffd9b0}

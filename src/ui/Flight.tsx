@@ -462,6 +462,7 @@ export function OrbitalPanel() {
           <h2>{asteroid ? "Rendezvous control" : probeMission ? "Orbiter & probe control" : "Deployment control"}</h2>
           <PartHelp id="computer" />
         </div>
+        <MissionSteps />
         {asteroid ? (
           <>
             <div className="report-grid">
@@ -649,6 +650,52 @@ function PlanetFacts({ id }: { id: keyof typeof solarSystem }) {
       </dl>
       <small>{b.atmosphere}</small>
     </div>
+  );
+}
+type Step = { title: string; how: string; done: boolean; active?: string };
+/** Step-by-step plan for orbital missions: what is done, what to do next and how. */
+function MissionSteps() {
+  const d = useGame((s) => s.data), o = d.orbital;
+  const has = (id: string) => d.observations.includes(id);
+  const allSent = engine.targets().every((t) => d.transmitted.includes(t.id));
+  const scanning = (id: string) => (d.scanId === id ? `Collecting… ${d.scanTime.toFixed(0)} s` : undefined);
+  const range = Math.hypot(o.x, o.y, o.z - 14), speed = Math.hypot(o.vx, o.vy, o.vz);
+  let steps: Step[];
+  if (d.destination === "asteroid")
+    steps = [
+      { title: "Reach the science corridor", how: `Press “Approach science corridor” (autopilot) or translate with the arrow keys / RCS pad, then Space to brake. Need range < 5 m and speed < 0.35 m/s — now ${range.toFixed(1)} m, ${speed.toFixed(2)} m/s.`, done: sampleCorridor(o) || has("A1") },
+      { title: "Record the VY-26 spectrum", how: "Hold position in the green ring and press “VY-26 SPECTRUM”. Do not touch the controls for 8 s or the reading is cancelled.", done: has("A1"), active: scanning("A1") },
+      { title: "Collect the contact sample", how: "Still inside the corridor, press “CONTACT SAMPLE”. The sampling arm touches the surface for 10 s.", done: has("A2"), active: scanning("A2") },
+      { title: "Transmit to Earth", how: "Press “Transmit observations”. When Earth acknowledges, the mission is complete and the debrief opens.", done: allSent, active: d.transmitting ? `Transmitting… ${d.transmitTime.toFixed(0)} / 6 s` : undefined },
+    ];
+  else if (d.destination === "earth")
+    steps = [
+      { title: "Stabilize the attitude", how: "Release the controls and press Space (or keep Stabilization assist on) until angles < 7° and rates < 0.04 rad/s.", done: stableAttitude(o) || o.deployed },
+      { title: "Deploy the satellite", how: "Press “Deploy satellite & solar array”.", done: o.deployed },
+      { title: "Take the Earth observation", how: "Keep the attitude stable and press “EARTH OBSERVATION”.", done: has("E1"), active: scanning("E1") },
+      { title: "Transmit to Earth", how: "Press “Transmit observations” to finish the mission.", done: allSent, active: d.transmitting ? `Transmitting… ${d.transmitTime.toFixed(0)} / 6 s` : undefined },
+    ];
+  else
+    steps = [
+      { title: "Stabilize the orbiter", how: "Release the controls and press Space until angles < 7° and rates < 0.04 rad/s.", done: stableAttitude(o) || has("P1") },
+      { title: "Image the cloud tops", how: "Press the CLOUD-TOP IMAGING button and hold attitude for 8 s.", done: has("P1"), active: scanning("P1") },
+      { title: "Release the entry probe", how: "Press “Release entry probe (F)”, then wait for entry, parachute and descent to finish.", done: has("P2"), active: d.probe.phase !== "attached" && d.probe.phase !== "complete" ? PROBE_PHASES[d.probe.phase].label : undefined },
+      { title: "Transmit to Earth", how: "Press “Transmit observations” to finish the mission.", done: allSent, active: d.transmitting ? `Transmitting… ${d.transmitTime.toFixed(0)} / 6 s` : undefined },
+    ];
+  const next = steps.findIndex((s) => !s.done);
+  return (
+    <ol className="mission-steps" aria-label="Mission plan">
+      {steps.map((s, i) => (
+        <li key={s.title} className={s.done ? "done" : i === next ? "now" : ""}>
+          <span className="mark">{s.done ? "✓" : i === next ? "▶" : i + 1}</span>
+          <div>
+            <b>{s.title}</b>
+            {i === next && <p>{s.active ?? s.how}</p>}
+          </div>
+        </li>
+      ))}
+      {next === -1 && <li className="done"><span className="mark">★</span><div><b>Mission complete</b></div></li>}
+    </ol>
   );
 }
 export function PanelStowControl() {
