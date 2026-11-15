@@ -38,3 +38,16 @@ Credit: James Hastings-Trew, Planetary Pixel Emporium. The simulator/game render
 ## Procedural launch catalogue and thumbnails
 
 Vydex Scout, Pioneer and Titan are original fictional procedural models in `src/scenes/Rocket.tsx`. The same model generates local WebGL catalogue thumbnails and the hangar/countdown/ascent/separation/fairing sequence. Component thumbnails use the actual `PartGeometry` shared with the spacecraft. Images are generated in memory; no stock rocket imagery, external catalogue image requests or real-vehicle reference claims are used. VYDEX models, minimap, fairing envelope, emissive vacuum exhaust and inspection controls are project-created. Existing planet texture provenance above remains unchanged.
+
+## Imported NASA 3D models (public/models)
+
+Copied unchanged from NASA 3D Resources downloads (https://science.nasa.gov/3d-resources/); NASA media are generally not copyrighted, see https://www.nasa.gov/nasa-brand-center/images-and-media/. Use does not imply NASA endorsement.
+
+| File | Source model | Used in |
+| --- | --- | --- |
+| `perseverance.glb` | Mars 2020 Perseverance Rover | Rover in assembly (rover part), landing payload, Mars/Moon/Mercury surface |
+| `apollo-lm.glb` | Apollo Lunar Module | Lander for Moon and Mercury (powered descent + landed station) |
+| `calipso.glb` | CALIPSO | Deployed Earth-orbit satellite |
+| `ace.glb` | Advanced Composition Explorer | Orbiter for Venus–Neptune entry-probe missions |
+
+Draco decoder files in `public/draco` come from three.js (MIT).

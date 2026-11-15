@@ -12,6 +12,7 @@ import { Asteroid } from "./Asteroid";
 import { earthOrbit } from "../sim/orbit";
 import { missionKind, type DestinationId } from "../data/destinations";
 import { SunBody } from "./SunBody";
+import { GltfModel } from "./GltfAssets";
 
 /** Visual planet radius (scene units ≈ metres near the ship, planet compressed for depth precision). */
 const RV = 6000;
@@ -179,6 +180,7 @@ export default function Orbital() {
   const asteroid = d.destination === "asteroid";
   const probeMission = missionKind(d.destination) === "probe";
   const probePhase = useGame((s) => s.data.probe.phase);
+  const earthSat = d.destination === "earth" && d.orbital.deployed;
   const inAtmosphere = probeMission && (probePhase === "parachute" || probePhase === "descent");
   const alt = (ALT[d.destination] ?? 0.063) * RV;
   const planetKind = (asteroid ? "earth" : d.destination) as "earth";
@@ -268,12 +270,30 @@ export default function Orbital() {
         {/* Asteroid approach: stack axis along the flight line, so the cruise engine
             exhausts toward +Z and its thrust drives the craft toward the target. */}
         <group rotation={asteroid ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
-        <VehicleEffects />
+        {earthSat ? (
+          // Deployed Earth satellite: imported NASA CALIPSO model.
+          <GltfModel id="calipso" />
+        ) : probeMission ? (
+          // Outer-planet / Venus orbiter: imported NASA ACE model, entry probe mounted until release.
+          <>
+            <VehicleEffects />
+            <GltfModel id="ace" />
+            {d.probe.phase === "attached" && (
+              <group position={[0, 1.6, 0]}>
+                <PartGeometry id="probe" design={d.design} />
+              </group>
+            )}
+          </>
+        ) : (
+          <>
+            <VehicleEffects />
         <Spacecraft
           design={probeMission && d.probe.phase !== "attached" ? { ...d.design, parts: { ...d.design.parts, probe: false } } : d.design}
           separated={(!asteroid && d.orbital.deployed) || probeMission}
           solarDeployed={asteroid || probeMission || d.orbital.deployed}
         />
+          </>
+        )}
         </group>
       </group>
       <group ref={probeBody} visible={false}>

@@ -1,4 +1,5 @@
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useCallback } from "react";
+import { GltfModel, type LoadedModel } from "./GltfAssets";
 import { hardwareTextures } from "./hardwareTextures";
 import { panelSet } from "./materials";
 import { useFrame } from "@react-three/fiber";
@@ -108,10 +109,22 @@ function ScanBeams({ active, color = "#4dffd2" }: { active: () => number; color?
   );
 }
 engine.armFx = () => { roverFx.armUntil = performance.now() + 7000; };
+/** Perseverance clip timings (from the glTF): arm stowed at 0 s, fully deployed 9–18 s. */
+const ARM_CLIPS = ["arm.003Action", "arm.002Action", "armAction", "arm.004Action", "turret_objAction", "turret_cam_cover_01", "turret.001Action.001"];
+const ARM_DEPLOYED_T = 9;
+const MAST_CLIPS = ["CylinderAction", "bottomAction", "Cylinder.002Action"];
+const MAST_UP_T = 3;
+type RoverRig = { mixer: THREE.AnimationMixer; arm: THREE.AnimationAction[]; mast: THREE.AnimationAction[]; top?: THREE.Object3D; topRest?: THREE.Quaternion; head?: THREE.Object3D; hga?: THREE.Object3D; root: THREE.Object3D };
+/**
+ * Rover = imported NASA Mars 2020 Perseverance model (public/models/perseverance.glb).
+ * Driven parts: robotic arm and mast via the model's own animation clips, mast
+ * pan via its `top` node. Limitation: the file merges all six wheels into one
+ * mesh (`Wheels_objs`) and the rocker-bogie into one mesh (`suspension`), so
+ * individual wheel spin, corner steering and suspension articulation cannot be
+ * animated; the whole vehicle still pitches/rolls with the terrain.
+ */
 export function Rover({
   design,
-  speed = 0,
-  turn = 0,
   scale = 1,
   moving = false,
   folded = false,
@@ -123,22 +136,32 @@ export function Rover({
   moving?: boolean;
   folded?: boolean;
 }) {
-  const wheels = useRef<(THREE.Group | null)[]>([]),
-    tires = useRef<(THREE.Group | null)[]>([]),
-    mastHead = useRef<THREE.Group>(null),
-    mast = useRef<THREE.Group>(null),
-    arm = useRef<THREE.Group>(null),
-    elbow = useRef<THREE.Group>(null),
-    turret = useRef<THREE.Group>(null),
-    drillBit = useRef<THREE.Mesh>(null),
-    hga = useRef<THREE.Group>(null),
+  void design;
+  const rig = useRef<RoverRig | null>(null),
+    k = useRef({ arm: 0, mast: folded ? 0 : 1, pan: 0 }),
+    beams = useRef<THREE.Group>(null),
+    beam = useRef<THREE.Mesh>(null),
     lights = useRef<THREE.Group>(null),
     rec = useRef<THREE.Mesh>(null),
-    beam = useRef<THREE.Mesh>(null),
     spotA = useRef<THREE.SpotLight>(null),
     spotB = useRef<THREE.SpotLight>(null),
-    lightTarget = useMemo(() => new THREE.Object3D(), []);
-  const roverSkin = useMemo(() => panelSet({ base: "#e4e1d6", grid: [4, 2], dust: 0.7, vents: true, grime: 0.8, seed: 21 }), []);
+    self = useRef<THREE.Group>(null),
+    lightTarget = useMemo(() => new THREE.Object3D(), []),
+    tmp = useMemo(() => new THREE.Vector3(), []);
+  const onReady = useCallback((m: LoadedModel) => {
+    const mixer = new THREE.AnimationMixer(m.scene);
+    const take = (names: string[]) => names.flatMap((n) => {
+      const clip = m.animations.find((c) => c.name === n);
+      if (!clip) return [];
+      const a = mixer.clipAction(clip);
+      a.play();
+      a.paused = true;
+      a.time = 0;
+      return [a];
+    });
+    const top = m.scene.getObjectByName("top") ?? undefined;
+    rig.current = { mixer, arm: take(ARM_CLIPS), mast: take(MAST_CLIPS), top, topRest: top?.quaternion.clone(), head: m.scene.getObjectByName("head") ?? undefined, hga: m.scene.getObjectByName("antenna_hg") ?? undefined, root: m.root };
+  }, []);
   const scanning = () => {
     const d = engine.data;
     if (!moving || d.stage !== "surface") return 0;
@@ -147,31 +170,32 @@ export function Rover({
   };
   useFrame(({ clock }, dt) => {
     const ui = useGame.getState();
-    if (ui.paused || ui.drawer || ui.settings.inspection || ui.workshop.info || ui.rocketInfo || ui.tutorial.hold) return;
-    const d = engine.data, t = clock.getElapsedTime();
+    const r = rig.current;
+    const d = engine.data, t = clock.getElapsedTime(), step = Math.min(dt, 0.1);
+    const frozen = ui.paused || ui.drawer || ui.settings.inspection || ui.workshop.info || ui.rocketInfo || ui.tutorial.hold;
     const inst = moving ? engine.targets().find((x) => x.id === d.scanId)?.instrument : undefined;
     const anim = ui.settings.reducedMotion ? 0 : 1;
-    const step = Math.min(dt, 0.1);
-    // Mast: folded on the deck for cruise, raised on the surface. Head pans while imaging.
-    if (mast.current) mast.current.rotation.x = THREE.MathUtils.damp(mast.current.rotation.x, folded ? -Math.PI / 2 : 0, 3, step);
-    if (mastHead.current) {
-      mastHead.current.rotation.y = THREE.MathUtils.damp(mastHead.current.rotation.y, inst === "camera" ? Math.sin(t * 0.7) * 0.6 * anim : inst ? 0 : Math.sin(t * 0.15) * 0.15 * anim, 3, step);
-      mastHead.current.rotation.x = THREE.MathUtils.damp(mastHead.current.rotation.x, inst ? -0.35 : -0.08, 3, step);
+    if (r && !frozen) {
+      const armOut = inst === "drill" || inst === "spectrometer" || inst === "sampler" || performance.now() < roverFx.armUntil;
+      k.current.arm = THREE.MathUtils.damp(k.current.arm, armOut ? 1 : 0, 0.9, step);
+      k.current.mast = THREE.MathUtils.damp(k.current.mast, folded ? 0 : 1, 2, step);
+      for (const a of r.arm) a.time = k.current.arm * ARM_DEPLOYED_T;
+      for (const a of r.mast) a.time = k.current.mast * MAST_UP_T;
+      r.mixer.update(0);
+      // Mast pan: sweep while imaging, slow idle look-around otherwise.
+      k.current.pan = THREE.MathUtils.damp(k.current.pan, inst === "camera" ? Math.sin(t * 0.7) * 0.7 * anim : Math.sin(t * 0.15) * 0.2 * anim, 3, step);
+      if (r.top && r.topRest) r.top.quaternion.copy(r.topRest).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.current.pan));
     }
-    // Arm: stowed across the front; unfolds to the ground for drill / contact science.
-    // Arm: stowed folded across the front; for contact science it swings out ~1.5 m
-    // ahead of the rover and places the turret (drill / spectrometer / imager) on the ground.
-    const armOut = inst === "drill" || inst === "spectrometer" || inst === "sampler" || performance.now() < roverFx.armUntil;
-    if (arm.current) arm.current.rotation.x = THREE.MathUtils.damp(arm.current.rotation.x, armOut ? 1.35 : 0.35, 1.6, step);
-    if (elbow.current) elbow.current.rotation.x = THREE.MathUtils.damp(elbow.current.rotation.x, armOut ? -0.75 : 2.5, 1.6, step);
-    if (turret.current) turret.current.rotation.z += armOut ? step * 0.4 * anim : 0;
-    if (drillBit.current) {
-      if (inst === "drill") drillBit.current.rotation.y += step * 18 * anim;
-      drillBit.current.position.y = inst === "drill" ? -0.2 - Math.min(0.12, d.scanTime * 0.012) : -0.2;
+    // Scan beams follow the real mast head.
+    if (r?.head && beams.current && self.current) {
+      r.head.getWorldPosition(tmp);
+      self.current.worldToLocal(tmp);
+      beams.current.position.copy(tmp);
     }
-    // HGA tracks Earth; dish slews up during transmission.
-    if (hga.current) hga.current.rotation.x = THREE.MathUtils.damp(hga.current.rotation.x, moving && d.transmitting ? -0.9 : -0.3, 2, step);
-    if (beam.current) {
+    if (r?.hga && beam.current && self.current) {
+      r.hga.getWorldPosition(tmp);
+      self.current.worldToLocal(tmp);
+      beam.current.parent?.position.copy(tmp);
       beam.current.visible = moving && d.transmitting;
       (beam.current.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.15 * Math.sin(t * 12);
     }
@@ -180,253 +204,41 @@ export function Rover({
     if (spotA.current) spotA.current.intensity = lit ? 45 : 0;
     if (spotB.current) spotB.current.intensity = lit ? 45 : 0;
     if (rec.current) rec.current.visible = roverFx.recording && Math.sin(t * 6) > 0;
-    wheels.current.forEach((w, i) => {
-      if (!w) return;
-      const corner = i % 3 !== 1;
-      const front = i % 3 === 0;
-      const steer = moving ? d.rover.steering : turn;
-      w.rotation.y = corner ? (front ? 1 : -1) * steer * 0.35 : 0;
-    });
-    tires.current.forEach((tg, i) => {
-      if (!tg) return;
-      const side = i < 3 ? -1 : 1;
-      tg.rotation.x -= ((moving ? d.rover.speed + side * d.rover.steering * 0.6 : speed) * step) / 0.42;
-    });
   });
-  // Rocker-bogie geometry, per side (x = ±1.02). Wheels at z = -1.05 (front), 0.05 (middle), 1.0 (rear).
-  const wheelZ = [-1.05, 0.05, 1.0];
   return (
-    <group scale={scale}>
+    <group scale={scale} ref={self}>
       <primitive object={lightTarget} position={[0, 0, -9]} />
-      {/* Warm Electronics Box (chassis) */}
-      <group position={[0, 1.08, 0.05]}>
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[1.55, 0.5, 2.15]} />
-          <meshStandardMaterial {...roverSkin} color="#ffffff" roughness={1} metalness={0.15} bumpScale={0.5} />
-        </mesh>
-        {/* Cable harnesses and small instrument boxes along the deck edge */}
-        {[-0.6, -0.2, 0.25, 0.7].map((z, k) => (
-          <mesh key={k} position={[0.62 - (k % 2) * 1.24, 0.3, z]}>
-            <boxGeometry args={[0.18, 0.12, 0.22]} />
-            <meshStandardMaterial color={k % 2 ? "#c9a24a" : "#3a3f42"} metalness={0.7} roughness={0.4} />
-          </mesh>
-        ))}
-        {[-1, 1].map((sx) => (
-          <mesh key={sx} position={[sx * 0.79, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.018, 0.018, 1.9, 6]} />
-            <meshStandardMaterial color="#b88a3a" metalness={0.6} roughness={0.5} />
-          </mesh>
-        ))}
-        <mesh position={[0, 0.27, 0]}>
-          <boxGeometry args={[1.62, 0.04, 2.22]} />
-          <meshStandardMaterial color="#c8c6be" roughness={0.6} metalness={0.3} />
-        </mesh>
-        {/* Gold-taped seams and calibration targets */}
-        {[-1, 1].map((x) => (
-          <mesh key={x} position={[x * 0.78, 0, 0]}>
-            <boxGeometry args={[0.012, 0.4, 2.05]} />
-            <meshStandardMaterial color="#c79d43" metalness={0.85} roughness={0.35} />
-          </mesh>
-        ))}
-        <mesh position={[0.45, 0.3, 0.75]}>
-          <boxGeometry args={[0.18, 0.02, 0.18]} />
-          <meshStandardMaterial color="#6e6e6a" />
-        </mesh>
-        {/* Front/rear hazard-avoidance stereo cameras */}
-        {[-1, 1].map((end) => [-0.18, 0.18].map((x) => (
-          <mesh key={`${end}${x}`} position={[x, -0.12, end * 1.09]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.035, 0.035, 0.05, 14]} />
-            <meshStandardMaterial color="#0b0d10" metalness={0.9} roughness={0.15} />
-          </mesh>
-        )))}
-        {/* Recording LED */}
-        <mesh ref={rec} position={[0.55, 0.3, -1.05]} visible={false}>
-          <sphereGeometry args={[0.03, 10, 8]} />
-          <meshBasicMaterial color="#ff2a2a" />
-        </mesh>
-        {/* Rear power-system housing (MMRTG-style fins) */}
-        <group position={[0, 0.15, 1.25]} rotation={[-0.5, 0, 0]}>
-          <mesh>
-            <cylinderGeometry args={[0.2, 0.2, 0.62, 16]} />
-            <meshStandardMaterial color="#2f3337" metalness={0.6} roughness={0.5} />
-          </mesh>
-          {Array.from({ length: 8 }, (_, i) => (
-            <mesh key={i} rotation={[0, (i / 8) * Math.PI * 2, 0]} position={[0, 0, 0]}>
-              <boxGeometry args={[0.6, 0.58, 0.02]} />
-              <meshStandardMaterial color="#3c4146" metalness={0.6} roughness={0.5} />
-            </mesh>
-          ))}
+      <GltfModel id="perseverance" onReady={onReady} />
+      {/* Mast-head scan fan (position updated from the model's head node) */}
+      <group ref={beams}>
+        <group position={[0, 0, -0.25]}>
+          <ScanBeams active={scanning} />
         </group>
       </group>
-      {/* Rocker-bogie suspension + six wheels with corner steering actuators */}
-      {[-1, 1].map((side, si) => {
-        const x = side * 1.02;
-        return (
-          <group key={side}>
-            {/* Differential pivot on the body side */}
-            <mesh position={[side * 0.82, 1.0, 0.1]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.09, 0.09, 0.12, 16]} />
-              <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
-            </mesh>
-            <Strut from={[side * 0.88, 1.0, 0.1]} to={[x, 1.0, 0.1]} r={0.05} />
-            {/* Rocker: pivot → front wheel; pivot → bogie pivot */}
-            <Strut from={[x, 1.0, 0.1]} to={[x, 0.82, wheelZ[0]]} />
-            <Strut from={[x, 1.0, 0.1]} to={[x, 0.78, 0.55]} />
-            {/* Bogie: middle ↔ rear wheels */}
-            <Strut from={[x, 0.78, 0.55]} to={[x, 0.62, wheelZ[1]]} />
-            <Strut from={[x, 0.78, 0.55]} to={[x, 0.62, wheelZ[2]]} />
-            {wheelZ.map((z, wi) => (
-              <group key={z} position={[x, 0.42, z]} ref={(n) => { wheels.current[si * 3 + wi] = n; }}>
-                {/* Wheel drop link */}
-                <Strut from={[0, z === wheelZ[0] ? 0.4 : 0.2, 0]} to={[0, 0, 0]} r={0.04} />
-                {wi !== 1 && (
-                  <mesh position={[0, 0.42, 0]}>
-                    <cylinderGeometry args={[0.07, 0.07, 0.16, 12]} />
-                    <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
-                  </mesh>
-                )}
-                <group position={[side * 0.12, 0, 0]} ref={(n) => { tires.current[si * 3 + wi] = n; }}>
-                  <Wheel />
-                </group>
-              </group>
-            ))}
-          </group>
-        );
-      })}
-      {/* Remote sensing mast with pan/tilt head: twin zoom cameras + laser spectrometer lens */}
-      <group ref={mast} position={[-0.48, 1.36, -0.85]}>
-        <mesh position={[0, 0.8, 0]} castShadow>
-          <cylinderGeometry args={[0.055, 0.07, 1.6, 12]} />
-          <meshStandardMaterial color={white} roughness={0.5} metalness={0.3} />
-        </mesh>
-        <group ref={mastHead} position={[0, 1.68, 0]}>
-          <mesh castShadow position={[0, 0.06, 0.02]}>
-            <boxGeometry args={[0.46, 0.34, 0.42]} />
-            <meshStandardMaterial color="#d9d6cb" roughness={0.5} metalness={0.25} />
+      {/* Earth link beam from the high-gain antenna */}
+      <group>
+        <group rotation={[-0.9, 0, 0]}>
+          <mesh ref={beam} position={[0, 0, -9]} rotation={[Math.PI / 2, 0, 0]} visible={false}>
+            <cylinderGeometry args={[0.6, 0.22, 18, 16, 1, true]} />
+            <meshBasicMaterial color="#7cf0ff" transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
-          <mesh position={[0, 0.07, -0.2]}>
-            <boxGeometry args={[0.4, 0.28, 0.02]} />
-            <meshStandardMaterial color="#b9b29e" roughness={0.6} metalness={0.4} />
-          </mesh>
-          <mesh position={[0, 0.1, -0.21]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.09, 0.09, 0.06, 24]} />
-            <meshStandardMaterial color="#0a0c0e" metalness={0.95} roughness={0.08} />
-          </mesh>
-          {[-0.19, 0.19].map((x) => (
-            <mesh key={x} position={[x, 0.02, -0.17]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.045, 0.045, 0.07, 18]} />
-              <meshStandardMaterial color="#111518" metalness={0.9} roughness={0.1} />
-            </mesh>
-          ))}
-          {/* Navigation cameras */}
-          <mesh position={[0, -0.16, -0.12]}>
-            <boxGeometry args={[0.36, 0.07, 0.1]} />
-            <meshStandardMaterial color={dark} metalness={0.5} roughness={0.5} />
-          </mesh>
-          <group position={[0, 0, -0.2]}>
-            <ScanBeams active={scanning} />
-          </group>
         </group>
       </group>
-      {/* Headlights: two LED floodlights on the front of the chassis */}
+      {/* Headlights (added hardware for night driving) and recording LED */}
       <group ref={lights} visible={false}>
-        {[-0.5, 0.5].map((x) => (
-          <mesh key={x} position={[x, 1.0, -1.09]}>
-            <boxGeometry args={[0.16, 0.08, 0.03]} />
+        {[-0.45, 0.45].map((x) => (
+          <mesh key={x} position={[x, 0.95, -1.5]}>
+            <boxGeometry args={[0.14, 0.07, 0.03]} />
             <meshBasicMaterial color="#fff6dc" />
           </mesh>
         ))}
       </group>
-      <spotLight ref={spotA} position={[-0.5, 1.0, -1.1]} target={lightTarget} angle={0.55} penumbra={0.6} distance={28} decay={1.4} color="#fff3d6" intensity={0} castShadow={false} />
-      <spotLight ref={spotB} position={[0.5, 1.0, -1.1]} target={lightTarget} angle={0.55} penumbra={0.6} distance={28} decay={1.4} color="#fff3d6" intensity={0} />
-      {/* 5-DOF robotic arm with tool turret (drill, contact spectrometer, close-up imager) */}
-      {(design.drill || design.spectrometer || folded === false) && (
-        <group ref={arm} position={[0.5, 1.05, -1.15]} rotation={[1.25, 0, 0]}>
-          <mesh>
-            <sphereGeometry args={[0.09, 14, 10]} />
-            <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
-          </mesh>
-          <mesh position={[0, -0.45, 0]}>
-            <cylinderGeometry args={[0.045, 0.05, 0.9, 12]} />
-            <meshStandardMaterial color={white} metalness={0.3} roughness={0.5} />
-          </mesh>
-          <group ref={elbow} position={[0, -0.9, 0]} rotation={[-2.4, 0, 0]}>
-            <mesh>
-              <sphereGeometry args={[0.07, 12, 10]} />
-              <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
-            </mesh>
-            <mesh position={[0, -0.4, 0]}>
-              <cylinderGeometry args={[0.04, 0.045, 0.8, 12]} />
-              <meshStandardMaterial color={white} metalness={0.3} roughness={0.5} />
-            </mesh>
-            <group ref={turret} name="rover-turret" position={[0, -0.85, 0]}>
-              <mesh>
-                <boxGeometry args={[0.22, 0.18, 0.22]} />
-                <meshStandardMaterial color="#5a5e60" metalness={0.7} roughness={0.4} />
-              </mesh>
-              {design.drill && (
-                <mesh ref={drillBit} position={[0, -0.2, 0]}>
-                  <cylinderGeometry args={[0.03, 0.012, 0.26, 10]} />
-                  <meshStandardMaterial color="#d8d6cf" metalness={0.95} roughness={0.2} />
-                </mesh>
-              )}
-              <mesh position={[0.14, -0.04, 0]}>
-                <cylinderGeometry args={[0.05, 0.05, 0.12, 14]} />
-                <meshStandardMaterial color="#202326" metalness={0.6} roughness={0.4} />
-              </mesh>
-              <mesh position={[-0.14, -0.04, 0]}>
-                <boxGeometry args={[0.08, 0.12, 0.1]} />
-                <meshStandardMaterial color="#c49b45" metalness={0.8} roughness={0.35} />
-              </mesh>
-            </group>
-          </group>
-        </group>
-      )}
-      {/* MER-style solar deck with fold-out wings */}
-      {design.solar && (
-        <group position={[0, 1.42, 0.08]}>
-          {/* Body-sized top deck array (no MER-style side wings), keeping a Curiosity/Perseverance silhouette */}
-          <mesh castShadow>
-            <boxGeometry args={[1.5, 0.035, 1.9]} />
-            <SolarCellMaterial />
-          </mesh>
-        </group>
-      )}
-      {/* High-gain antenna (hexagonal flat-plate) + UHF helix */}
-      {design.antenna && (
-        <group position={[0.5, 1.5, 0.75]}>
-          <mesh position={[0, 0.1, 0]}>
-            <cylinderGeometry args={[0.04, 0.05, 0.2, 10]} />
-            <meshStandardMaterial color={dark} />
-          </mesh>
-          <group ref={hga} position={[0, 0.28, 0]} rotation={[-0.3, 0, 0]}>
-            <mesh rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.28, 0.28, 0.04, 6]} />
-              <meshStandardMaterial color="#d7d5cc" metalness={0.4} roughness={0.5} />
-            </mesh>
-            <mesh ref={beam} position={[0, 0, -9]} rotation={[Math.PI / 2, 0, 0]} visible={false}>
-              <cylinderGeometry args={[0.6, 0.22, 18, 16, 1, true]} />
-              <meshBasicMaterial color="#7cf0ff" transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
-            </mesh>
-          </group>
-          <mesh position={[-0.35, 0.25, 0]}>
-            <cylinderGeometry args={[0.035, 0.035, 0.5, 10]} />
-            <meshStandardMaterial color="#c9c7bf" />
-          </mesh>
-        </group>
-      )}
-      {design.camera && (
-        <mesh position={[-0.48, 3.12, -0.75]}>
-          <boxGeometry args={[0.05, 0.05, 0.05]} />
-          <meshStandardMaterial color="#e05a2c" />
-        </mesh>
-      )}
-      {design.battery && (
-        <mesh position={[-0.5, 1.38, 0.6]}>
-          <boxGeometry args={[0.36, 0.08, 0.36]} />
-          <meshStandardMaterial color="#3d4945" metalness={0.5} roughness={0.5} />
-        </mesh>
-      )}
+      <mesh ref={rec} position={[0.5, 1.4, -1.3]} visible={false}>
+        <sphereGeometry args={[0.03, 10, 8]} />
+        <meshBasicMaterial color="#ff2a2a" />
+      </mesh>
+      <spotLight ref={spotA} position={[-0.45, 0.95, -1.5]} target={lightTarget} angle={0.55} penumbra={0.6} distance={28} decay={1.4} color="#fff3d6" intensity={0} />
+      <spotLight ref={spotB} position={[0.45, 0.95, -1.5]} target={lightTarget} angle={0.55} penumbra={0.6} distance={28} decay={1.4} color="#fff3d6" intensity={0} />
     </group>
   );
 }

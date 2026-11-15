@@ -78,7 +78,7 @@ import {
   FlightToolbar,
 } from "./ui/Flight";
 import { parts, installed, requiredParts, type PartId } from "./data/workshop";
-import { destinations, environment, isLunarLike } from "./data/destinations";
+import { destinations, environment, isLunarLike, missionKind } from "./data/destinations";
 import { launchFraction } from "./sim/journey";
 import Launchers, { RocketInformation } from "./ui/Launchers";
 import Observations from "./ui/Observations";
@@ -93,6 +93,7 @@ import RoverOps from "./ui/RoverOps";
 import { attachCameraRig } from "./cameraRig";
 import { startMissionAudio } from "./audio";
 import PostFX from "./scenes/PostFX";
+import { preloadModels } from "./scenes/GltfAssets";
 import DriveHelp from "./ui/DriveHelp";
 const RocketHangar = lazy(()=>import("./scenes/RocketHangar"));
 const Orbital = lazy(() => import("./scenes/Orbital"));
@@ -171,12 +172,22 @@ function Stat({
   );
 }
 function Loading() {
-  const { progress, active } = useProgress();
+  const { progress, active, item, loaded, total, errors } = useProgress();
+  const name = item ? decodeURIComponent(item.split("/").pop() ?? "") : "";
   return (
-    <div className="loading" style={{ display: active ? "flex" : "none" }}>
-      <span className="spinner" />
-      BUILDING YOUR FRONTIER <b>{progress.toFixed(0)}%</b>
-    </div>
+    <>
+      <div className="loading" style={{ display: active ? "flex" : "none" }}>
+        <span className="spinner" />
+        {name.endsWith(".glb") ? `LOADING 3D MODEL · ${name}` : "BUILDING YOUR FRONTIER"} <b>{progress.toFixed(0)}%</b>
+        <small>{loaded}/{total}</small>
+      </div>
+      {errors.length > 0 && (
+        <div className="model-error loading-error" role="alert">
+          <b>Some assets failed to load</b>
+          {[...new Set(errors)].slice(0, 3).map((e) => <small key={e}>{decodeURIComponent(e.split("/").pop() ?? e)}</small>)}
+        </div>
+      )}
+    </>
   );
 }
 class SceneBoundary extends Component<
@@ -284,6 +295,12 @@ function Scene() {
 function SceneEnvironment() {
   const { gl, scene, camera } = useThree();
   const stage = useGame((s) => s.data.stage);
+  const destination = useGame((s) => s.data.destination);
+  useEffect(() => {
+    // Warm the GLB cache for this mission's imported models before they are needed.
+    const k = missionKind(destination);
+    preloadModels(destination === "mars" ? ["perseverance"] : isLunarLike(destination) ? ["apolloLM"] : destination === "earth" ? ["calipso"] : k === "probe" ? ["ace"] : []);
+  }, [destination]);
   if (import.meta.env.DEV) Object.assign(window as object, { __vydexCam: camera });
   useEffect(() => {
     const pmrem = new THREE.PMREMGenerator(gl);

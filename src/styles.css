@@ -4710,3 +4710,7 @@ footer i:not(.status-dot) {
 .surface-telemetry .sol-clock{font-size:8px;flex-wrap:wrap;gap:4px}
 .surface-telemetry{max-height:calc(100% - 220px);overflow-y:auto;scrollbar-width:thin}
 .surface-telemetry .micro{display:none}
+.model-error{display:flex;flex-direction:column;gap:4px;min-width:220px;padding:10px 14px;border-radius:4px;background:#2a0f0cf0;border:1px solid #ff5b3b99;color:#ffd9cf;font:11px/1.4 system-ui,sans-serif;pointer-events:none}
+.model-error b{font-size:12px}.model-error small{font:9px monospace;color:#f1b3a6}
+.loading-error{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);z-index:20}
+.loading small{font:9px monospace;margin-left:8px;opacity:.7}

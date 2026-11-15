@@ -9,6 +9,7 @@ import { rigCamera } from "../cameraRig";
 import { roverView } from "../sim/controls";
 import { Rover } from "./Models";
 import { Spacecraft } from "./Spacecraft";
+import { GltfModel } from "./GltfAssets";
 import { Planet } from "./Planet";
 import { isLunarLike, SURFACE_GRAVITY, type DestinationId } from "../data/destinations";
 import { makeSurfaceTextures } from "./surfaceTextures";
@@ -268,7 +269,8 @@ function useBaseLogo() {
   const [tex, setTex] = useStateSafe<THREE.Texture>(fallback);
   useEffect(() => {
     let alive = true;
-    new THREE.TextureLoader().load("/assets/base-logo.png", (t) => { t.colorSpace = THREE.SRGBColorSpace; if (alive) setTex(t); }, undefined, () => {});
+    // Optional asset: separate LoadingManager so its absence is not reported as a failed model.
+    new THREE.TextureLoader(new THREE.LoadingManager()).load("/assets/base-logo.png", (t) => { t.colorSpace = THREE.SRGBColorSpace; if (alive) setTex(t); }, undefined, () => {});
     return () => { alive = false; };
   }, [setTex]);
   return tex;
@@ -916,11 +918,21 @@ export default function World() {
       {stage === "landing" ? (
         <>
           <group ref={lander}>
-            <group position={[0, 0.6, 0]}>
-              {/* Solar wings stay folded through entry and powered descent; they open after touchdown. */}
-              <Spacecraft design={design} separated solarDeployed={false} />
-            </group>
-            <LanderFlame />
+            {airless ? (
+              // Airless bodies: imported Apollo Lunar Module (footpads on the solver's contact height).
+              <group position={[0, -0.8, 0]}>
+                <GltfModel id="apolloLM" />
+                <group position={[0, 1.55, 0]}><LanderFlame /></group>
+              </group>
+            ) : (
+              <>
+                <group position={[0, 0.6, 0]}>
+                  {/* Solar wings stay folded through entry and powered descent; they open after touchdown. */}
+                  <Spacecraft design={design} separated solarDeployed={false} />
+                </group>
+                <LanderFlame />
+              </>
+            )}
           </group>
           <mesh ref={predicted} position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[2.4, 2.6, 32]} />
@@ -929,9 +941,15 @@ export default function World() {
         </>
       ) : (
         <>
-          <group position={[engine.data.lander.x, terrainHeight(engine.data.lander.x, engine.data.lander.z) + 1.4, engine.data.lander.z]}>
-            <Spacecraft design={landedDesign} separated />
-          </group>
+          {airless ? (
+            <group position={[engine.data.lander.x, terrainHeight(engine.data.lander.x, engine.data.lander.z), engine.data.lander.z]}>
+              <GltfModel id="apolloLM" />
+            </group>
+          ) : (
+            <group position={[engine.data.lander.x, terrainHeight(engine.data.lander.x, engine.data.lander.z) + 1.4, engine.data.lander.z]}>
+              <Spacecraft design={landedDesign} separated />
+            </group>
+          )}
           <group ref={rover}>
             <Rover design={design} moving />
           </group>
