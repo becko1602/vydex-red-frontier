@@ -132,27 +132,25 @@ function Heliocentric({ dest }: { dest: DestinationId }) {
     });
     const p = hohmann(1, destAU, f), d = auToScene(p.r);
     v.set(d * Math.cos(p.angle), 0, d * Math.sin(p.angle));
-    // Never let the craft sit inside a planet: near Earth (departure) and the
-    // target (arrival) it flies a parking orbit just above the surface.
-    for (const id of ["earth", destBody] as (HeliocentricBodyId | null)[]) {
-      if (!id) continue;
+    // Parking orbits: around Earth at departure and around the target on arrival
+    // the craft circles on an inclined orbit just above the globe (it keeps
+    // moving while it waits for orbit insertion / landing clearance).
+    const orbitAt = (id: HeliocentricBodyId, phase: number, out: THREE.Vector3) => {
       bodyPos(id, f, tmpBody);
-      const rOrbit = BODY_R[id] + 0.17; // clear of the globe even with the craft's ~0.12-unit wingspan
-      const off = tmpOff.copy(v).sub(tmpBody);
-      const dist = off.length();
-      if (dist < rOrbit * 2.2) {
-        const k = THREE.MathUtils.smoothstep(dist, rOrbit * 2.2, 0); // 0 far → 1 at the centre
-        const a = data.stageTime * 0.9;
-        const orbitDir = tmpDir.set(Math.cos(a), 0.35 * Math.sin(a * 0.7), Math.sin(a)).normalize();
-        const outward = dist > 1e-4 ? off.normalize() : orbitDir;
-        outward.lerp(orbitDir, k).normalize();
-        v.copy(tmpBody).addScaledVector(outward, Math.max(dist, rOrbit));
-      }
+      const r = BODY_R[id] + 0.17, a = data.stageTime * 0.55 + phase, inc = 0.45;
+      return out.set(Math.cos(a) * r, Math.sin(a) * Math.sin(inc) * r, Math.sin(a) * Math.cos(inc) * r).add(tmpBody);
+    };
+    if (destBody && f > 0.88) {
+      const k = THREE.MathUtils.smoothstep(f, 0.88, 0.995);
+      v.lerp(orbitAt(destBody, 0, tmpDir), k);
+    } else if (f < 0.06) {
+      const k = 1 - THREE.MathUtils.smoothstep(f, 0.0, 0.06);
+      v.lerp(orbitAt("earth", Math.PI / 2, tmpDir), k);
     }
     if (ship.current) {
+      const prev = tmpOff.copy(ship.current.position);
       ship.current.position.copy(v);
-      const ahead = hohmann(1, destAU, Math.min(1, f + 0.01)), da = auToScene(ahead.r);
-      ship.current.lookAt(da * Math.cos(ahead.angle), 0, da * Math.sin(ahead.angle));
+      if (prev.distanceToSquared(v) > 1e-10) ship.current.lookAt(v.clone().add(v.clone().sub(prev)));
     }
     if (plume.current) plume.current.visible = data.correction && data.cruiseProgress < 0.025;
     const z = settings.flightZoom || 1;
@@ -219,7 +217,7 @@ function Heliocentric({ dest }: { dest: DestinationId }) {
         </group>
       )}
       {settings.showTrajectory && <Line points={path} color="#8ed5df" lineWidth={1.6} dashed dashSize={0.18} gapSize={0.12} />}
-      <group ref={ship}>
+      <group ref={ship} name="cruise-ship">
         {/* True-scale hierarchy: the spacecraft is a speck next to planets; a marker shows where it is. */}
         <group scale={0.012} rotation={[Math.PI / 2, 0, 0]}>
           <Spacecraft design={engine.data.design} solarDeployed stowed />
