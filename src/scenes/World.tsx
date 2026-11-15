@@ -415,7 +415,10 @@ function MarsBaseComplex({ cx, cz, ground }: { cx: number; cz: number; ground: s
       <Corridor a={[-13.5, -3]} b={[-13.5, -9.5]} r={0.8} />
       {/* Wing modules */}
       <Module x={14} z={0} w={8} d={4.2} />
-      <Module x={-14} z={0} w={8} d={4.2} />
+      {/* West wing: imported NASA Habitat Demonstration Unit (both parts) */}
+      <group position={[cx - 17, y(-17, 0), cz]} rotation={[0, Math.PI / 2, 0]}>
+        <GltfModel id="hdu" />
+      </group>
       <Module x={0} z={-14} w={4.4} d={7.5} />
       <Module x={8} z={-11} w={4.5} d={3.4} h={2.4} />
       <Module x={-7.5} z={10.5} w={4} d={3.2} h={2.4} rot={0.05} />

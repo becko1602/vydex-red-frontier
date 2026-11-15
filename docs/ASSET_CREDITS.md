@@ -49,5 +49,7 @@ Copied unchanged from NASA 3D Resources downloads (https://science.nasa.gov/3d-r
 | `apollo-lm.glb` | Apollo Lunar Module | Lander for Moon and Mercury (powered descent + landed station) |
 | `calipso.glb` | CALIPSO | Deployed Earth-orbit satellite |
 | `ace.glb` | Advanced Composition Explorer | Orbiter for Venus–Neptune entry-probe missions |
+| `hdu-part1.glb`, `hdu-part2.glb` | Habitat Demonstration Unit (parts 1 + 2, loaded together) | West wing habitat of the surface base (Mars, Moon, Mercury) |
+| `mobile-launcher.glb` | Mobile Launcher (assembled) | SLS launch pad and SLS stack in the assembly high bay |
 
 Draco decoder files in `public/draco` come from three.js (MIT).

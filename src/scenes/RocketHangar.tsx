@@ -5,6 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGame } from '../store';
 import { Member, LatticeTower } from './Structures';
+import { GltfModel } from './GltfAssets';
 import { LaunchVehicle, rocketLayout, ROCKET_VISUAL_SCALE } from './Rocket';
 import { launchers, launcherPerformance, type LauncherId } from '../data/launchVehicles';
 
@@ -312,8 +313,8 @@ function HighBay({ height, id }: { height: number; id: LauncherId }) {
           <pointLight position={[0, -1, 0]} intensity={110} distance={H * 1.6} decay={1.6} color="#fff1d6" />
         </group>
       )))}
-      {/* Mobile launcher platform */}
-      <mesh position={[0, -1.0, 0]} castShadow receiveShadow>
+      {/* Generic launcher platform (SLS uses the imported Mobile Launcher instead) */}
+      <mesh position={[0, -1.0, 0]} castShadow receiveShadow visible={id !== 'titan'}>
         <boxGeometry args={[14, 1.2, 11]} />
         <meshStandardMaterial color="#3b3f42" metalness={0.5} roughness={0.6} />
       </mesh>
@@ -341,7 +342,14 @@ export default function RocketHangar() {
       <hemisphereLight args={['#f1efe7', '#6a6862', 0.9]} />
       <directionalLight position={[-20, 30, 25]} intensity={1.0} color="#fff3df" castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-30} shadow-camera-right={30} shadow-camera-top={40} shadow-camera-bottom={-10} />
       <HighBay height={h} id={id} />
-      <WorkPlatforms height={h} radius={radius} />
+      {id === 'titan' ? (
+        // SLS is stacked on the imported Mobile Launcher inside the high bay.
+        <group position={[3.35, -1.9, -0.3]} scale={ROCKET_VISUAL_SCALE}>
+          <GltfModel id="mobileLauncher" />
+        </group>
+      ) : (
+        <WorkPlatforms height={h} radius={radius} />
+      )}
       <LaunchVehicle id={id} />
       <OrbitControls makeDefault target={[0, h * 0.5, 0]} enablePan={false} enableDamping dampingFactor={0.08} rotateSpeed={0.65} minDistance={h * 0.6} maxDistance={70} minPolarAngle={0.08} maxPolarAngle={Math.PI * 0.6} onStart={() => useGame.getState().setTutorial({ action: 'rocket-rotate' })} />
     </>

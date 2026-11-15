@@ -299,7 +299,10 @@ function SceneEnvironment() {
   useEffect(() => {
     // Warm the GLB cache for this mission's imported models before they are needed.
     const k = missionKind(destination);
-    preloadModels(destination === "mars" ? ["perseverance"] : isLunarLike(destination) ? ["apolloLM"] : destination === "earth" ? ["calipso"] : k === "probe" ? ["ace"] : []);
+    preloadModels([
+      "mobileLauncher",
+      ...(destination === "mars" ? (["perseverance", "hdu"] as const) : isLunarLike(destination) ? (["apolloLM", "perseverance", "hdu"] as const) : destination === "earth" ? (["calipso"] as const) : k === "probe" ? (["ace"] as const) : []),
+    ]);
   }, [destination]);
   if (import.meta.env.DEV) Object.assign(window as object, { __vydexCam: camera });
   useEffect(() => {

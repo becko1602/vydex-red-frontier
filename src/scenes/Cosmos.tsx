@@ -16,6 +16,7 @@ import { launchers } from "../data/launchVehicles";
 import { solarSystem } from "../data/solarSystem";
 import SolarTransfer from "./SolarTransfer";
 import { Member, LatticeTower } from "./Structures";
+import { GltfModel } from "./GltfAssets";
 import { LaunchEnvironment, PadInfrastructure, ExhaustPlume, LaunchClouds, Deluge, VaporCone, LAUNCH_UNITS_PER_M } from "./LaunchSite";
 import {
   heliocentricBodyIds,
@@ -179,6 +180,8 @@ function LaunchComplex({ height, active, liftoff, radius = 0.55 }: { height: num
     ))}
   </group>;
 }
+/** Mobile Launcher placement: the SLS exhaust hole sits on the origin, deck top at y = 0. */
+const ML_OFFSET = { x: 3.35, y: -1.9, z: -0.3, yaw: 0 };
 function LaunchSmoke({ active }: { active: boolean }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -311,12 +314,18 @@ function Launch() {
     <>
       <LaunchEnvironment altitudeM={altitudeM} />
       <PadInfrastructure rocketHeight={layout.height} />
-      <LaunchComplex
+      {launcher === "titan" && (
+        // SLS stands on the imported Mobile Launcher (1 scene unit = 4 m).
+        <group position={[ML_OFFSET.x, ML_OFFSET.y, ML_OFFSET.z]} rotation={[0, ML_OFFSET.yaw, 0]} scale={ROCKET_VISUAL_SCALE}>
+          <GltfModel id="mobileLauncher" />
+        </group>
+      )}
+      {launcher !== "titan" && <LaunchComplex
         height={layout.height}
         active={d.launchChecks.every(Boolean) && p > 0.065}
         liftoff={p > 0.12}
         radius={coreR}
-      />
+      />}
       <Deluge active={() => !useGame.getState().paused && engine.data.launchChecks.every(Boolean) && launchFraction(engine.data) > 0.07 && launchFraction(engine.data) < 0.2} />
       <LaunchClouds
         active={() => !useGame.getState().paused && engine.data.launchChecks.every(Boolean) && launchFraction(engine.data) > 0.12 && launchFraction(engine.data) < 0.7}

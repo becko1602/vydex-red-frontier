@@ -10,9 +10,11 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
  * X/Z and placed with its lowest point on y = 0. Gameplay physics never reads
  * these meshes; collision stays on the simulation's own simple shapes.
  */
-export type ModelId = "perseverance" | "apolloLM" | "calipso" | "ace";
+export type ModelId = "perseverance" | "apolloLM" | "calipso" | "ace" | "hdu" | "mobileLauncher";
 type Spec = {
   url: string;
+  /** Extra files sharing one coordinate frame (multi-part exports). */
+  parts?: string[];
   label: string;
   /** Real size in metres along `sizeAxis` of the normalised model. */
   size: number;
@@ -32,10 +34,14 @@ export const MODELS: Record<ModelId, Spec> = {
   calipso: { url: "/models/calipso.glb", label: "CALIPSO", size: 9.5, sizeAxis: "max" },
   // ACE: ~1.6 m octagonal bus; span with the deployed panels and booms ~8 m.
   ace: { url: "/models/ace.glb", label: "Advanced Composition Explorer (ACE)", size: 8, sizeAxis: "max" },
+  // NASA Habitat Demonstration Unit (two files, same frame): ~5.8 m across the core module.
+  hdu: { url: "/models/hdu-part1.glb", parts: ["/models/hdu-part2.glb"], label: "Habitat Demonstration Unit", size: 12, sizeAxis: "max", ground: true },
+  // SLS Mobile Launcher ML-1: base deck + 116 m umbilical tower (≈118 m overall).
+  mobileLauncher: { url: "/models/mobile-launcher.glb", label: "SLS Mobile Launcher", size: 118, sizeAxis: "y", ground: true },
 };
 const DRACO = "/draco/";
 export function preloadModels(ids: ModelId[]) {
-  for (const id of ids) useGLTF.preload(MODELS[id].url, DRACO);
+  for (const id of ids) for (const u of [MODELS[id].url, ...(MODELS[id].parts ?? [])]) useGLTF.preload(u, DRACO);
 }
 
 /** Visible error in the 3D view instead of a silent placeholder. */
@@ -66,9 +72,11 @@ export type LoadedModel = {
 };
 function useNormalised(id: ModelId): LoadedModel {
   const spec = MODELS[id];
-  const gltf = useGLTF(spec.url, DRACO);
+  const all = useGLTF([spec.url, ...(spec.parts ?? [])], DRACO) as unknown as { scene: THREE.Group; animations: THREE.AnimationClip[] }[];
+  const gltf = all[0];
   return useMemo(() => {
-    const scene = cloneSkinned(gltf.scene);
+    const scene = new THREE.Group();
+    for (const g of all) scene.add(cloneSkinned(g.scene));
     // Drop exporter cameras/lights baked into some files (e.g. CALIPSO).
     const junk: THREE.Object3D[] = [];
     scene.traverse((o) => {
@@ -107,7 +115,7 @@ function useNormalised(id: ModelId): LoadedModel {
     root.add(yawG);
     root.name = `model:${id}`;
     return { root, scene, animations: gltf.animations };
-  }, [gltf, spec]);
+  }, [gltf, spec, all]);
 }
 
 /** Renders a normalised model; `onReady` receives it for rigging (animations, node control). */
