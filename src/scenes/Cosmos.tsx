@@ -217,7 +217,7 @@ function Launch() {
   const carrier = useRef<THREE.Group>(null),
     payload = useRef<THREE.Group>(null),
     altitudeM = useRef(0),
-    jettison = useRef({ bY: NaN, bT: 0, cY: NaN, cT: 0 }),
+    jettison = useRef({ bT: NaN, cT: NaN }),
     drop = useMemo<JettisonDrop>(() => ({ booster: 0, core: 0 }), []),
     rocketPos = useRef(new THREE.Vector3());
   const { camera, scene } = useThree(),
@@ -250,18 +250,21 @@ function Launch() {
         lift - Math.max(0, progress - 0.7) * 110,
         0,
       );
-      // Jettisoned stages: freeze at the altitude where they separated, then fall
-      // (visual gravity, scene units/s²). Reset if the timeline is rewound.
-      const y = carrier.current.position.y, now = data.stageTime;
+      // Jettisoned stages keep the vehicle's velocity at separation; the still-
+      // thrusting rocket then pulls away from them with a relative acceleration
+      // (thrust/mass + drag on the spent stage), so they trail behind gradually
+      // and tumble — visible for several seconds instead of vanishing.
+      const now = data.stageTime;
       const sepB = 0.38, sepC = launcher === "titan" ? 0.49 : 0.38;
       const j = jettison.current;
-      if (progress < sepB) j.bY = NaN;
-      if (progress < sepC) j.cY = NaN;
-      if (progress >= sepB && Number.isNaN(j.bY)) { j.bY = y; j.bT = now; }
-      if (progress >= sepC && Number.isNaN(j.cY)) { j.cY = y; j.cT = now; }
-      const fall = (t0: number) => 0.5 * 9 * Math.max(0, now - t0) ** 2;
-      drop.booster = Number.isNaN(j.bY) ? 0 : y - j.bY + fall(j.bT);
-      drop.core = Number.isNaN(j.cY) ? 0 : y - j.cY + fall(j.cT);
+      if (progress < sepB) j.bT = NaN;
+      if (progress < sepC) j.cT = NaN;
+      if (progress >= sepB && Number.isNaN(j.bT)) j.bT = now;
+      if (progress >= sepC && Number.isNaN(j.cT)) j.cT = now;
+      const A_REL = 2.2; // scene units / s²
+      const trail = (t0: number) => (Number.isNaN(t0) ? 0 : 0.5 * A_REL * Math.max(0, now - t0) ** 2);
+      drop.booster = trail(j.bT);
+      drop.core = trail(j.cT);
       carrier.current.visible = progress < 0.86;
     }
     if (payload.current) {

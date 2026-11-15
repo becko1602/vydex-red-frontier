@@ -112,8 +112,16 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
   useFrame(() => {
     if (!drop) return;
     // Local offsets are in design metres (group is scaled by ROCKET_VISUAL_SCALE).
-    if (coreRef.current) coreRef.current.position.y = -upperSeparation * 45 - drop.core / ROCKET_VISUAL_SCALE;
-    for (const g of Object.values(boosterRefs.current)) if (g) g.position.y = -separation * 35 - drop.booster / ROCKET_VISUAL_SCALE;
+    // Trail behind (y), drift sideways and tumble as the gap grows.
+    if (coreRef.current) {
+      coreRef.current.position.y = -upperSeparation * 6 - drop.core / ROCKET_VISUAL_SCALE;
+      coreRef.current.position.x = Math.min(40, drop.core * 0.25) / ROCKET_VISUAL_SCALE;
+      coreRef.current.rotation.z = upperSeparation * 0.17 + drop.core * 0.012;
+    }
+    for (const g of Object.values(boosterRefs.current)) if (g) {
+      g.position.y = -separation * 4 - drop.booster / ROCKET_VISUAL_SCALE;
+      g.rotation.z = -separation * 0.25 - drop.booster * 0.02;
+    }
   });
   const skin = useMemo(() => (id === 'titan' ? foamTexture(r.coreColor) : skinTexture(r.coreColor, '#2b2f33')), [id, r.coreColor]);
   const upperSkin = useMemo(() => skinTexture(r.upperColor, '#2b2f33'), [r.upperColor]);
@@ -128,7 +136,7 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
   const white = (map: THREE.Texture, repeat = 1) => <meshStandardMaterial map={map} color="#ffffff" metalness={0.15} roughness={0.55} map-repeat={[repeat, 1]} />;
   return <group scale={ROCKET_VISUAL_SCALE}>
     {/* First stage (core): falls away at staging */}
-    <group ref={coreRef} position={[0, -upperSeparation * 45, 0]} rotation={[0, 0, upperSeparation * .17]}>
+    <group ref={coreRef} position={[0, -upperSeparation * 6, 0]} rotation={[0, 0, upperSeparation * .17]}>
       <mesh position={[0, joint / 2 + radius * 0.5, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[radius, radius, joint - radius * 0.5, 48]} />
         {white(skin, 3)}
@@ -214,7 +222,7 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
       const br = radius * (r.boosters === 4 ? 0.42 : 0.44), dist = radius + br * 1.08;
       return (
         <group key={a} rotation={[0, -a, 0]}>
-          <group ref={(n) => { boosterRefs.current[a] = n; }} position={[dist + separation * 18, -separation * 35, 0]} rotation={[0, 0, -separation * .25]}>
+          <group ref={(n) => { boosterRefs.current[a] = n; }} position={[dist + separation * 10, -separation * 4, 0]} rotation={[0, 0, -separation * .25]}>
             <mesh position={[0, bLen / 2 + 0.3, 0]} castShadow receiveShadow>
               <cylinderGeometry args={[br, br, bLen - 0.6, 32]} />
               <meshStandardMaterial map={boosterSkin} color="#ffffff" roughness={0.55} metalness={0.1} />
