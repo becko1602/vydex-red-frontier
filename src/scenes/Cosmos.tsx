@@ -238,8 +238,10 @@ function Launch() {
       visAlt = progress < .12 ? 0 : 205000 * Math.pow(clamp((progress - .12) / .58, 0, 1), 2.1),
       lift = Math.max(progress < .12 ? 0 : ascent.altitudeM * .014, visAlt * LAUNCH_UNITS_PER_M),
       angle = Math.max(0, progress - 0.7) * 0.8;
-    target.set(Math.sin(angle) * 140, -60 + Math.cos(angle) * 140, 0);
+    // After MECO the stack is already at ~205 km: orbit insertion continues
+    // horizontally from there instead of dropping back toward the pad.
     if (progress < 0.7) target.set(0, lift + layout.payloadY, 0);
+    else target.set(Math.sin(angle) * 140, lift + layout.payloadY + (1 - Math.cos(angle)) * 6, 0);
     if (carrier.current) {
       carrier.current.position.set(
         0,
@@ -262,7 +264,7 @@ function Launch() {
     if (settings.flightCamera === "overview")
       cam.set(target.x + 34 * zoom, target.y + 20 * zoom, target.z + 42 * zoom);
     else if (settings.flightCamera === "follow")
-      cam.set(target.x + 5 * zoom, target.y + 3 * zoom, target.z + 10 * zoom);
+      cam.set(target.x + 5 * zoom, target.y + (progress > 0.7 ? 7 : 3) * zoom, target.z + (progress > 0.7 ? 13 : 10) * zoom);
     else
       cam.set(
         target.x + Math.sin(data.stageTime * 0.04 + 1) * 17 * zoom,

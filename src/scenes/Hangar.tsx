@@ -95,7 +95,7 @@ export default function Hangar({inspection=false}:{inspection?:boolean}) {
       <color attach="background" args={["#0c141d"]} />
       <fog attach="fog" args={["#0c141d", 20, 65]} />
       <ambientLight intensity={0.72} />
-      <hemisphereLight args={["#d7eaf3", "#131e26", 1.2]} />
+      <hemisphereLight args={["#d7eaf3", "#3a4650", 1.0]} />
       <spotLight
         position={[0, 13, 5]}
         intensity={190}

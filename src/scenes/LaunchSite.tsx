@@ -88,7 +88,7 @@ export function LaunchEnvironment({ altitudeM }: { altitudeM: MutableRefObject<n
     const high = THREE.MathUtils.clamp((h - 2500) / 6000, 0, 1);
     // Depth precision: push the near plane out as the vehicle climbs.
     if (camera instanceof THREE.PerspectiveCamera) {
-      const near = h > 3000 ? Math.min(40, 0.1 + h * 0.0006) : 0.1;
+      const near = h > 3000 ? Math.min(1.5, 0.1 + h * 0.00002) : 0.1; // keep the vehicle (≈10–20 units away) inside the frustum
       if (Math.abs(camera.near - near) > 0.05) {
         camera.near = near;
         camera.updateProjectionMatrix();

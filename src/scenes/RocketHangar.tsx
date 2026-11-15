@@ -247,7 +247,7 @@ function HighBay({ height, id }: { height: number; id: LauncherId }) {
       </mesh>
       <mesh position={[0, height * 0.55, -D / 2 + 0.3]}>
         <planeGeometry args={[30, 16.9]} />
-        <meshStandardMaterial map={blueprint} roughness={0.6} emissive="#2b6fb5" emissiveIntensity={0.18} emissiveMap={blueprint} />
+        <meshStandardMaterial map={blueprint} roughness={0.6} emissive="#2b6fb5" emissiveIntensity={0.08} emissiveMap={blueprint} />
       </mesh>
       {/* Side walls */}
       {[-1, 1].map((s) => (
@@ -309,7 +309,7 @@ function HighBay({ height, id }: { height: number; id: LauncherId }) {
             <cylinderGeometry args={[0.8, 1.1, 0.5, 16]} />
             <meshStandardMaterial color="#e6e6e0" emissive="#fff4dc" emissiveIntensity={1.5} />
           </mesh>
-          <pointLight position={[0, -1, 0]} intensity={180} distance={H * 1.6} decay={1.6} color="#fff1d6" />
+          <pointLight position={[0, -1, 0]} intensity={110} distance={H * 1.6} decay={1.6} color="#fff1d6" />
         </group>
       )))}
       {/* Mobile launcher platform */}
@@ -336,9 +336,9 @@ export default function RocketHangar() {
     <>
       <color attach="background" args={['#1d2226']} />
       <fog attach="fog" args={['#1d2226', 40, 120]} />
-      <ambientLight intensity={0.25} />
-      <hemisphereLight args={['#f1efe7', '#3a3936', 0.7]} />
-      <directionalLight position={[-20, 30, 25]} intensity={1.6} color="#fff3df" castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-30} shadow-camera-right={30} shadow-camera-top={40} shadow-camera-bottom={-10} />
+      <ambientLight intensity={0.55} />
+      <hemisphereLight args={['#f1efe7', '#6a6862', 0.9]} />
+      <directionalLight position={[-20, 30, 25]} intensity={1.0} color="#fff3df" castShadow shadow-mapSize={[2048, 2048]} shadow-camera-left={-30} shadow-camera-right={30} shadow-camera-top={40} shadow-camera-bottom={-10} />
       <HighBay height={h} id={id} />
       <WorkPlatforms height={h} radius={radius} />
       <LaunchVehicle id={id} />

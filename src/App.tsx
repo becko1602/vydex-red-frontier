@@ -281,12 +281,14 @@ function Scene() {
 }
 /** Image-based lighting so metals, foil and glass reflect a neutral studio environment instead of rendering black. */
 function SceneEnvironment() {
-  const { gl, scene } = useThree();
+  const { gl, scene, camera } = useThree();
   const stage = useGame((s) => s.data.stage);
+  if (import.meta.env.DEV) Object.assign(window as object, { __vydexCam: camera });
   useEffect(() => {
     const pmrem = new THREE.PMREMGenerator(gl);
     const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = env;
+    if (import.meta.env.DEV) Object.assign(window as object, { __vydexScene: scene, __vydexGl: gl });
     return () => {
       scene.environment = null;
       env.dispose();
@@ -295,8 +297,10 @@ function SceneEnvironment() {
   }, [gl, scene]);
   useEffect(() => {
     // Hangars are lit interiors; in space and on planets the Sun dominates.
-    scene.environmentIntensity = ["rocket", "assembly", "preflight"].includes(stage) ? 0.9 : 0.35;
-  }, [scene, stage]);
+    scene.environmentIntensity = ["rocket", "assembly", "preflight"].includes(stage) ? 1.15 : 0.35;
+    // Interiors: slightly lower exposure + more ambient fill = softer contrast.
+    gl.toneMappingExposure = ["rocket", "assembly", "preflight"].includes(stage) ? 0.92 : 1.05;
+  }, [scene, stage, gl]);
   return null;
 }
 function AdaptiveResolution() {

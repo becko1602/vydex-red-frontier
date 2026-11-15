@@ -68,11 +68,28 @@ function Terrain() {
  */
 function HorizonRing() {
   const dest = engine.data.destination;
+  const texture = useMemo(() => makeSurfaceTextures(isLunarLike(dest)), [dest]);
+  useEffect(() => () => texture.dispose(), [texture]);
   const geometry = useMemo(() => {
     const R = radiusOf(dest), inner = 280, outer = 60000, rings = 70, seg = 220;
     const rand = seeded(77);
     const bumps = Array.from({ length: 18 }, () => ({ a: rand() * Math.PI * 2, f: 0.0004 + rand() * 0.003, amp: 6 + rand() * 40, p: rand() * 6 }));
-    const pos: number[] = [], col: number[] = [], idx: number[] = [];
+    const pos: number[] = [], col: number[] = [], idx: number[] = [], uv: number[] = [];
+    // Crater field (size-frequency: many small, few large), like orbital imagery of Mars, Moon and Mercury.
+    const craters = Array.from({ length: isLunarLike(dest) ? 140 : 70 }, () => {
+      const d = 500 + Math.pow(rand(), 0.7) * 45000, a = rand() * Math.PI * 2;
+      return { x: Math.cos(a) * d, z: Math.sin(a) * d, r: 60 + Math.pow(rand(), 3) * 2600 };
+    });
+    const craterAt = (x: number, z: number) => {
+      let h = 0, shade = 0;
+      for (const c of craters) {
+        const q = Math.hypot(x - c.x, z - c.z) / c.r;
+        if (q > 2.2) continue;
+        h += c.r * 0.06 * Math.exp(-(((q - 1) / 0.16) ** 2)) - c.r * 0.12 * Math.exp(-((q / 0.8) ** 4));
+        shade += q < 1 ? -0.06 * (1 - q) : q < 1.25 ? 0.05 : 0;
+      }
+      return { h, shade };
+    };
     const c = new THREE.Color();
     for (let i = 0; i <= rings; i++) {
       const r = inner * Math.pow(outer / inner, i / rings);
@@ -82,21 +99,24 @@ function HorizonRing() {
         let far = 0;
         for (const b of bumps) far += Math.sin((x * Math.cos(b.a) + z * Math.sin(b.a)) * b.f + b.p) * b.amp;
         const farMix = clamp((r - inner) / 3000, 0, 1);
-        const h = terrainHeight(x, z) * near + far * farMix * (isLunarLike(dest) ? 0.7 : 1) - (r * r) / (2 * R);
+        const cr = craterAt(x, z);
+        const h = terrainHeight(x, z) * near + (far * (isLunarLike(dest) ? 0.7 : 1) + cr.h) * farMix - (r * r) / (2 * R);
         pos.push(x, h, z);
+        uv.push((x + 300) / 600, (300 - z) / 600); // same world mapping as the local patch
         groundColor(dest, x, z, far * 0.02, c);
-        const fade = 1 - farMix * 0.12;
+        const fade = (1 - farMix * 0.12) * (1 + cr.shade * farMix);
         col.push(c.r * fade, c.g * fade, c.b * fade);
       }
     }
     for (let i = 0; i < rings; i++)
       for (let j = 0; j < seg; j++) {
         const a = i * seg + j, b = i * seg + ((j + 1) % seg), c2 = (i + 1) * seg + j, d = (i + 1) * seg + ((j + 1) % seg);
-        idx.push(a, c2, b, b, c2, d);
+        idx.push(a, b, c2, b, d, c2); // counter-clockwise seen from above → faces up
       }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
     g.setIndex(idx);
     g.computeVertexNormals();
     return g;
@@ -104,7 +124,7 @@ function HorizonRing() {
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh geometry={geometry} receiveShadow>
-      <meshStandardMaterial vertexColors roughness={1} polygonOffset polygonOffsetFactor={2} polygonOffsetUnits={2} />
+      <meshStandardMaterial vertexColors map={texture.color} bumpMap={texture.bump} bumpScale={0.04} roughness={1} polygonOffset polygonOffsetFactor={2} polygonOffsetUnits={2} />
     </mesh>
   );
 }
@@ -629,6 +649,7 @@ export default function World() {
         tmp.set(l.x + back.x * 10 * zoom, l.y + (3.6 + Math.min(4, h * 0.01)) * zoom, l.z + back.z * 10 * zoom);
       }
       if (settings.flightCamera !== "overview") rigCamera(tmp, new THREE.Vector3(l.x, l.y, l.z));
+      if (camera.position.distanceTo(tmp) > 120) camera.position.copy(tmp); // snap instead of a long swoop
       camera.position.lerp(tmp, smooth);
       cameraTarget.current.set(l.x, l.y - 1.2 - Math.min(3, h * 0.008), l.z);
       camera.lookAt(cameraTarget.current);
@@ -657,7 +678,7 @@ export default function World() {
   return (
     <>
       <color attach="background" args={[airless ? "#000000" : "#a88a70"]} />
-      {!airless && <fog attach="fog" args={["#c19c7c", stage === "landing" ? 900 : 260, stage === "landing" ? 14000 : 6000]} />}
+      {!airless && <fog attach="fog" args={["#c19c7c", stage === "landing" ? 8000 : 900, stage === "landing" ? 140000 : 60000]} />}
       <SurfaceSky />
       <SunLighting />
       {destination === "moon" && (

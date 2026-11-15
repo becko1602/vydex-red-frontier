@@ -111,6 +111,7 @@ function Heliocentric({ dest }: { dest: DestinationId }) {
     [destAU],
   );
   const v = useMemo(() => new THREE.Vector3(), []), cam = useMemo(() => new THREE.Vector3(), []), look = useMemo(() => new THREE.Vector3(), []);
+  const tmpBody = useMemo(() => new THREE.Vector3(), []), tmpOff = useMemo(() => new THREE.Vector3(), []), tmpDir = useMemo(() => new THREE.Vector3(), []);
   const bodyPos = (id: HeliocentricBodyId, f: number, out: THREE.Vector3) => {
     const au = orbitAU(id), years = f * tYears;
     let phase = heliocentricOrbits[id].phaseRad;
@@ -131,6 +132,23 @@ function Heliocentric({ dest }: { dest: DestinationId }) {
     });
     const p = hohmann(1, destAU, f), d = auToScene(p.r);
     v.set(d * Math.cos(p.angle), 0, d * Math.sin(p.angle));
+    // Never let the craft sit inside a planet: near Earth (departure) and the
+    // target (arrival) it flies a parking orbit just above the surface.
+    for (const id of ["earth", destBody] as (HeliocentricBodyId | null)[]) {
+      if (!id) continue;
+      bodyPos(id, f, tmpBody);
+      const rOrbit = BODY_R[id] * 1.9;
+      const off = tmpOff.copy(v).sub(tmpBody);
+      const dist = off.length();
+      if (dist < rOrbit * 1.6) {
+        const k = THREE.MathUtils.smoothstep(dist, rOrbit * 1.6, 0); // 0 far → 1 at the centre
+        const a = data.stageTime * 0.9;
+        const orbitDir = tmpDir.set(Math.cos(a), 0.35 * Math.sin(a * 0.7), Math.sin(a)).normalize();
+        const outward = dist > 1e-4 ? off.normalize() : orbitDir;
+        outward.lerp(orbitDir, k).normalize();
+        v.copy(tmpBody).addScaledVector(outward, Math.max(dist, rOrbit));
+      }
+    }
     if (ship.current) {
       ship.current.position.copy(v);
       const ahead = hohmann(1, destAU, Math.min(1, f + 0.01)), da = auToScene(ahead.r);
@@ -271,6 +289,12 @@ function Geocentric({ dest }: { dest: DestinationId }) {
     const f = engine.data.cruiseProgress, i = Math.min(path.length - 1, Math.floor(f * (path.length - 1)));
     const pt = path[i];
     v.set(pt[0], pt[1], pt[2]);
+    // Arrival: settle into a low lunar orbit instead of entering the Moon.
+    const moonC = new THREE.Vector3(-DIST, 0, 0), dm = v.distanceTo(moonC);
+    if (dest === "moon" && dm < RM * 2.2) {
+      const a = engine.data.stageTime * 0.8;
+      v.copy(moonC).add(new THREE.Vector3(Math.cos(a), 0.2, Math.sin(a)).normalize().multiplyScalar(RM * 1.5));
+    }
     ship.current?.position.copy(v);
     moon.current?.position.set(-DIST, 0, 0.0001);
     const z = settings.flightZoom || 1;
