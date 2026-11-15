@@ -265,12 +265,16 @@ export default function Orbital() {
         </group>
       )}
       <group ref={ship}>
+        {/* Asteroid approach: stack axis along the flight line, so the cruise engine
+            exhausts toward +Z and its thrust drives the craft toward the target. */}
+        <group rotation={asteroid ? [-Math.PI / 2, 0, 0] : [0, 0, 0]}>
         <VehicleEffects />
         <Spacecraft
           design={probeMission && d.probe.phase !== "attached" ? { ...d.design, parts: { ...d.design.parts, probe: false } } : d.design}
           separated={(!asteroid && d.orbital.deployed) || probeMission}
           solarDeployed={asteroid || probeMission || d.orbital.deployed}
         />
+        </group>
       </group>
       <group ref={probeBody} visible={false}>
         <PartGeometry id="probe" design={d.design} />
