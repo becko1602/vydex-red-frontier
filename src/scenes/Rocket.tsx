@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { launchers, type LauncherId } from '../data/launchVehicles';
 import * as THREE from 'three';
 import { bellProfile } from './hardwareTextures';
@@ -98,9 +99,22 @@ function Engine({ scale = 1, active = true }: { scale?: number; active?: boolean
   );
 }
 // One model for cards, hangar and flight. All geometry in fictional design metres, then display scale 1:4.
-export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0, upperSeparation = 0, id = 'titan', throttle = 1 }: { firing?: boolean; fairingOpen?: number; separation?: number; upperSeparation?: number; id?: LauncherId; throttle?: number }) {
+/**
+ * World-space fall of jettisoned hardware, in metres-of-scene (world units).
+ * The launch scene writes these each frame: once a part separates it stops
+ * following the climbing vehicle and falls back under gravity.
+ */
+export type JettisonDrop = { booster: number; core: number };
+export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0, upperSeparation = 0, id = 'titan', throttle = 1, drop }: { drop?: JettisonDrop;  firing?: boolean; fairingOpen?: number; separation?: number; upperSeparation?: number; id?: LauncherId; throttle?: number }) {
   void firing; void throttle;
   const r = launchers[id], { nose, body } = rocketLayout(id), radius = r.diameter / 2, bay = r.fairingDiameter / 2, joint = rocketLayout(id).joint;
+  const coreRef = useRef<THREE.Group>(null), boosterRefs = useRef<Record<number, THREE.Group | null>>({});
+  useFrame(() => {
+    if (!drop) return;
+    // Local offsets are in design metres (group is scaled by ROCKET_VISUAL_SCALE).
+    if (coreRef.current) coreRef.current.position.y = -upperSeparation * 45 - drop.core / ROCKET_VISUAL_SCALE;
+    for (const g of Object.values(boosterRefs.current)) if (g) g.position.y = -separation * 35 - drop.booster / ROCKET_VISUAL_SCALE;
+  });
   const skin = useMemo(() => (id === 'titan' ? foamTexture(r.coreColor) : skinTexture(r.coreColor, '#2b2f33')), [id, r.coreColor]);
   const upperSkin = useMemo(() => skinTexture(r.upperColor, '#2b2f33'), [r.upperColor]);
   const boosterSkin = useMemo(() => boosterTexture(), []);
@@ -114,7 +128,7 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
   const white = (map: THREE.Texture, repeat = 1) => <meshStandardMaterial map={map} color="#ffffff" metalness={0.15} roughness={0.55} map-repeat={[repeat, 1]} />;
   return <group scale={ROCKET_VISUAL_SCALE}>
     {/* First stage (core): falls away at staging */}
-    <group position={[0, -upperSeparation * 45, 0]} rotation={[0, 0, upperSeparation * .17]}>
+    <group ref={coreRef} position={[0, -upperSeparation * 45, 0]} rotation={[0, 0, upperSeparation * .17]}>
       <mesh position={[0, joint / 2 + radius * 0.5, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[radius, radius, joint - radius * 0.5, 48]} />
         {white(skin, 3)}
@@ -200,7 +214,7 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
       const br = radius * (r.boosters === 4 ? 0.42 : 0.44), dist = radius + br * 1.08;
       return (
         <group key={a} rotation={[0, -a, 0]}>
-          <group position={[dist + separation * 18, -separation * 35, 0]} rotation={[0, 0, -separation * .25]}>
+          <group ref={(n) => { boosterRefs.current[a] = n; }} position={[dist + separation * 18, -separation * 35, 0]} rotation={[0, 0, -separation * .25]}>
             <mesh position={[0, bLen / 2 + 0.3, 0]} castShadow receiveShadow>
               <cylinderGeometry args={[br, br, bLen - 0.6, 32]} />
               <meshStandardMaterial map={boosterSkin} color="#ffffff" roughness={0.55} metalness={0.1} />
