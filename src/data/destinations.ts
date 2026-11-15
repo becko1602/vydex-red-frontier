@@ -10,7 +10,41 @@ export type DestinationId =
   | "saturn"
   | "uranus"
   | "neptune";
-export type PlayableDestination = "earth" | "moon" | "mars" | "asteroid";
+export type PlayableDestination = DestinationId;
+/** How a destination is explored. Gas/ice giants and Venus use an orbiter + entry probe. */
+export type MissionKind = "orbital" | "rendezvous" | "lander" | "rover" | "probe";
+export function missionKind(id: DestinationId): MissionKind {
+  if (id === "earth") return "orbital";
+  if (id === "asteroid") return "rendezvous";
+  if (id === "mars") return "rover";
+  if (id === "moon" || id === "mercury") return "lander";
+  return "probe";
+}
+/** Airless bodies where a stationary science lander is used (Moon, Mercury). */
+export const isLunarLike = (id: DestinationId) => id === "moon" || id === "mercury";
+/** Real equatorial surface (or 1-bar) gravity, m/s². */
+export const SURFACE_GRAVITY: Record<DestinationId, number> = {
+  earth: 9.807, moon: 1.62, mars: 3.721, asteroid: 0.0001, mercury: 3.7,
+  venus: 8.87, jupiter: 24.79, saturn: 10.44, uranus: 8.69, neptune: 11.15,
+};
+/** Mean distance from the Sun, AU. */
+export const SOLAR_DISTANCE_AU: Record<DestinationId, number> = {
+  earth: 1, moon: 1, asteroid: 1.1, mars: 1.524, mercury: 0.387, venus: 0.723,
+  jupiter: 5.203, saturn: 9.537, uranus: 19.19, neptune: 30.07,
+};
+/** Compressed play-time for the cruise phase (seconds at 1×) and the real transfer it represents (days). */
+export const TRANSFER: Record<DestinationId, { playSeconds: number; realDays: number; correctionDv: number }> = {
+  earth: { playSeconds: 15, realDays: 0.4, correctionDv: 30 },
+  moon: { playSeconds: 28, realDays: 3, correctionDv: 60 },
+  mars: { playSeconds: 45, realDays: 259, correctionDv: 120 },
+  asteroid: { playSeconds: 45, realDays: 36, correctionDv: 30 },
+  mercury: { playSeconds: 50, realDays: 2400, correctionDv: 140 },
+  venus: { playSeconds: 40, realDays: 146, correctionDv: 90 },
+  jupiter: { playSeconds: 55, realDays: 997, correctionDv: 110 },
+  saturn: { playSeconds: 60, realDays: 2200, correctionDv: 110 },
+  uranus: { playSeconds: 65, realDays: 3400, correctionDv: 100 },
+  neptune: { playSeconds: 70, realDays: 4400, correctionDv: 100 },
+};
 export const destinations: Record<
   DestinationId,
   {
@@ -74,78 +108,80 @@ export const destinations: Record<
   },
   mercury: {
     name: "MERCURY",
-    subtitle: "ORBITAL HEAT",
+    subtitle: "INTO THE SOLAR FURNACE",
     color: "#b7a18d",
-    playable: false,
-    difficulty: "Probe preview",
-    minutes: "Orbiter",
+    playable: true,
+    difficulty: "Advanced",
+    minutes: "6–9 min",
     objective:
-      "Plan a heat-resistant probe to map Mercury's surface and measure its exosphere from orbit.",
+      "Brake into Mercury's airless gravity well, land beside a shadowed crater rim, image the site, record a regolith spectrum and downlink both.",
     difference:
-      "A close solar orbit creates extreme thermal and communications constraints. This campaign uses an orbiter, not a rover landing.",
+      "3.70 m/s² gravity and no atmosphere: the engine removes every metre per second. Sunlight is ~6.7× stronger than at Earth, so heat, not power, is the constraint.",
   },
   venus: {
     name: "VENUS",
-    subtitle: "CLOUD OCEAN",
+    subtitle: "UNDER THE ACID CLOUDS",
     color: "#e5be7c",
-    playable: false,
-    difficulty: "Probe preview",
-    minutes: "Orbiter",
+    playable: true,
+    difficulty: "Atmospheric probe",
+    minutes: "6–9 min",
     objective:
-      "Plan a radar and atmospheric probe to study Venus beneath its permanent cloud cover.",
+      "Reach orbit, image the cloud deck, release an entry probe (zond) and relay its descent through 92-bar CO₂ to the orbiter.",
     difference:
-      "A dense atmosphere and extreme surface conditions require a dedicated probe architecture. No Mars-style rover landing is shown.",
+      "No rover can survive 465 °C at the surface for long. The probe uses a heat shield, then parachutes through sulfuric-acid clouds while transmitting.",
   },
   jupiter: {
     name: "JUPITER",
-    subtitle: "THE GAS GIANT",
+    subtitle: "GAS GIANT ENTRY ZOND",
     color: "#d8baa3",
-    playable: false,
-    difficulty: "Probe preview",
-    minutes: "Orbiter",
+    playable: true,
+    difficulty: "Atmospheric probe",
+    minutes: "7–10 min",
     objective:
-      "Plan a radiation-hardened orbiter to observe Jupiter's atmosphere and magnetosphere.",
+      "Stabilize in orbit, image the belts, release the entry probe and relay its parachute descent through ammonia and water clouds.",
     difference:
-      "Jupiter has no solid surface. The mission model is orbital observation, not landing or surface sampling.",
+      "Jupiter has no solid surface. Like Galileo's probe (1995) the zond enters at ~47 km/s, survives the heat pulse, and transmits until pressure crushes it.",
   },
   saturn: {
     name: "SATURN",
-    subtitle: "RINGS OF ICE",
+    subtitle: "RINGED GIANT PROBE",
     color: "#d4c699",
-    playable: false,
-    difficulty: "Probe preview",
-    minutes: "Orbiter",
+    playable: true,
+    difficulty: "Atmospheric probe",
+    minutes: "7–10 min",
     objective:
-      "Plan an orbiter to survey Saturn's rings, atmosphere and major moons.",
+      "Settle into orbit, image the rings, release the entry probe and relay its readings from Saturn's hydrogen-helium atmosphere.",
     difference:
-      "The ring system is shown at an illustrative scale. No solid planetary surface exists for a Mars-style landing.",
+      "No solid surface. Gravity at the cloud tops is 10.4 m/s²; the probe parachutes until pressure and heat end the mission.",
   },
   uranus: {
     name: "URANUS",
-    subtitle: "THE TILTED WORLD",
+    subtitle: "THE TILTED ICE GIANT",
     color: "#9fc9cf",
-    playable: false,
-    difficulty: "Probe preview",
-    minutes: "Orbiter",
+    playable: true,
+    difficulty: "Atmospheric probe",
+    minutes: "7–10 min",
     objective:
-      "Plan a distant orbiter to measure Uranus's atmosphere, rings and unusual axial tilt.",
+      "Orbit the 98°-tilted ice giant, image it, release a methane-sounding entry probe and relay its data.",
     difference:
-      "A long-duration outer-planet mission depends on power, communications and thermal planning rather than landing.",
+      "An ice giant: no solid surface, 8.7 m/s² gravity and −195 °C cloud tops. Sunlight is 1/370 of Earth's, so power margins are thin.",
   },
   neptune: {
     name: "NEPTUNE",
     subtitle: "DEEP BLUE FRONTIER",
     color: "#7297d1",
-    playable: false,
-    difficulty: "Probe preview",
-    minutes: "Orbiter",
+    playable: true,
+    difficulty: "Atmospheric probe",
+    minutes: "7–10 min",
     objective:
-      "Plan a deep-space probe to observe Neptune's winds, atmosphere and ring system.",
+      "Reach orbit 4.5 billion km from the Sun, image the planet, release the entry probe and relay its descent through supersonic winds.",
     difference:
-      "Neptune is a gas giant with no solid surface. The educational mission model is a long-range flyby or orbiter.",
+      "No solid surface; 11.2 m/s² gravity and the fastest winds in the Solar System (~2,100 km/h). Light-time to Earth is over 4 hours.",
   },
 };
 export function environment(destination: DestinationId) {
+  if (destination === "mercury")
+    return { gravity: SURFACE_GRAVITY.mercury, density: 0, scaleHeight: 1, solarDistance: C.earthOrbit * 0.387, dust: 1 };
   return destination === "moon"
     ? {
         gravity: C.moonGravity,

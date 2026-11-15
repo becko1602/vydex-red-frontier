@@ -1,5 +1,5 @@
 // All values in this file are FICTIONAL EDUCATIONAL GAME PARAMETERS, not NASA hardware or real prices.
-export type Instrument = "camera" | "spectrometer" | "drill" | "sampler";
+export type Instrument = "camera" | "spectrometer" | "drill" | "sampler" | "probe";
 export type Objective = "imaging" | "geology";
 export type StructuralPart =
   | "body"
@@ -11,7 +11,8 @@ export type StructuralPart =
   | "descentEngine"
   | "legs"
   | "rover"
-  | "sampler";
+  | "sampler"
+  | "probe";
 export type Design = {
   launcher?: import("./launchVehicles").LauncherId;
   parts?: Partial<Record<StructuralPart, boolean>>;
@@ -55,6 +56,7 @@ export const catalogue = {
   spectrometer: { name: "Spectrometer", credits: 6, mass: 8, power: 25 },
   drill: { name: "Core sample drill", credits: 8, mass: 15, power: 100 },
   sampler: { name: "Asteroid sampling arm", credits: 8, mass: 12, power: 75 },
+  probe: { name: "Atmospheric entry probe", credits: 9, mass: 120, power: 40 },
 };
 export const balance = {
   budget: 112,

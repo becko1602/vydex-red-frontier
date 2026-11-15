@@ -1,10 +1,11 @@
+import { solarSystem } from "../data/solarSystem";
 import type { FlightData } from './game';
 import { masses,terrainHeight,transferPosition,transferModel,launchAscent } from './physics';
 import { C } from '../data/scienceConstants';
 import { earthOrbit } from './orbit';
 import { launchers } from '../data/launchVehicles';
 import { launchDuration } from './journey';
-export function vehicleMass(d:FlightData){const m=masses(d.design);return d.stage==='surface'||(d.destination==='earth'&&d.orbital.deployed)?m.surface:['landing','debrief'].includes(d.stage)&&['moon','mars'].includes(d.destination)?m.descentDry+d.lander.fuel:m.cruiseDry+d.cruiseFuel}
+export function vehicleMass(d:FlightData){const m=masses(d.design);return d.stage==='surface'||(d.destination==='earth'&&d.orbital.deployed)?m.surface:['landing','debrief'].includes(d.stage)&&['moon','mars','mercury'].includes(d.destination)?m.descentDry+d.lander.fuel:m.cruiseDry+d.cruiseFuel}
 export function speedTelemetry(d:FlightData){
  if(d.stage==='launch'){
   const id=d.design.launcher??'titan',example=launchers[id].ascentModel;
@@ -15,6 +16,7 @@ export function speedTelemetry(d:FlightData){
  if(d.stage==='surface')return {label:'Ground-relative',speed:Math.abs(d.rover.speed),unit:'m/s',detail:'Local surface frame'};
  if(d.stage==='orbit'&&d.destination==='asteroid')return {label:'Asteroid-relative',speed:Math.hypot(d.orbital.vx,d.orbital.vy,d.orbital.vz),unit:'m/s',detail:`${Math.hypot(d.orbital.x,d.orbital.y,d.orbital.z-14).toFixed(1)} m to corridor`};
  if(d.stage==='cruise'&&d.destination==='mars'){const p=transferPosition(d.cruiseProgress),r=Math.hypot(p.x,p.z),t=transferModel();return {label:'Sun-relative (ideal model)',speed:Math.sqrt(C.muSun*(2/r-1/t.a))/1000,unit:'km/s',detail:`${(r/C.AU).toFixed(2)} AU from Sun`}}
+ if(d.stage==='orbit'&&d.destination!=='earth'&&d.destination!=='asteroid'){const R=solarSystem[d.destination as 'jupiter'].radiusM,mu=solarSystem[d.destination as 'jupiter'].muM3S2,alt={venus:.05,jupiter:.09,saturn:.1,uranus:.12,neptune:.12}[d.destination as 'venus']??.1,r=R*(1+alt);return {label:`${d.destination.toUpperCase()}-relative circular orbit`,speed:Math.sqrt(mu/r)/1000,unit:'km/s',detail:`${Math.round(R*alt/1000).toLocaleString('en-US')} km above the ${d.destination==='venus'?'surface':'1-bar level'}; period ${(2*Math.PI*Math.sqrt(r**3/mu)/3600).toFixed(1)} h`}}
  if(d.stage==='orbit')return {label:'Earth-relative circular reference',speed:earthOrbit().speed/1000,unit:'km/s',detail:'400 km reference altitude; local attitude separate'};
  return {label:'Illustrative route',speed:null,unit:'',detail:'No calculated ascent / route speed'};
 }

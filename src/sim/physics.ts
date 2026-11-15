@@ -12,7 +12,7 @@ import {
   requiredParts,
   type PartId,
 } from "../data/workshop";
-import { environment, type DestinationId } from "../data/destinations";
+import { environment, missionKind, TRANSFER, type DestinationId } from "../data/destinations";
 import { launchers } from "../data/launchVehicles";
 import { launcherFit } from "./payload";
 export const clamp = (v: number, a: number, b: number) =>
@@ -192,17 +192,17 @@ export function preflight(
       ok:
         installed(d, "cruiseEngine") &&
         deltaV(320, m.wet, m.cruiseDry) >
-          (destination === "mars" ? 120 : destination === "moon" ? 60 : 30),
-      detail: `${deltaV(320, m.wet, m.cruiseDry).toFixed(0)} m/s ideal Δv; correction requires ${destination === "mars" ? 120 : destination === "moon" ? 60 : 30} m/s`,
+          TRANSFER[destination].correctionDv,
+      detail: `${deltaV(320, m.wet, m.cruiseDry).toFixed(0)} m/s ideal Δv; correction requires ${TRANSFER[destination].correctionDv} m/s`,
     },
     {
       label: "Descent authority",
       ok:
-        !["mars", "moon"].includes(destination) ||
+        !["mars", "moon", "mercury"].includes(destination) ||
         (installed(d, "descentEngine") &&
           8000 / (m.descentWet * environment(destination).gravity) > 1.6 &&
           deltaV(220, m.descentWet, m.descentDry) >
-            (destination === "moon" ? 180 : 380)),
+            (destination === "moon" ? 180 : destination === "mercury" ? 300 : 380)),
       detail: `T/W ${(8000 / (m.descentWet * C.marsGravity)).toFixed(2)} · ${deltaV(220, m.descentWet, m.descentDry).toFixed(0)} m/s ideal reserve (minimum 380)`,
     },
   ];
@@ -220,14 +220,16 @@ export function preflight(
     ) ?? "tank";
   checks[1].part = checks[0].part;
   checks[2].part = requiredParts(destination, o)
-    .filter((id) => ["camera", "spectrometer", "drill", "sampler"].includes(id))
+    .filter((id) => ["camera", "spectrometer", "drill", "sampler", "probe"].includes(id))
     .find((id) => !installed(d, id));
   checks[3].part = !d.battery ? "battery" : !d.solar ? "solar" : "antenna";
   checks[4].part = !installed(d, "cruiseEngine") ? "cruiseEngine" : "tank";
   checks[5].part = !installed(d, "descentEngine") ? "descentEngine" : "tank";
   if (destination === "moon")
     checks[5].detail = `Moon: uniform 1.62 m/s²; no drag. T/W ${(8000 / (m.descentWet * 1.62)).toFixed(2)}; minimum 180 m/s ideal reserve.`;
-  if (destination === "earth" || destination === "asteroid")
+  if (destination === "mercury")
+    checks[5].detail = `Mercury: 3.70 m/s²; no drag, so the engine removes all speed. T/W ${(8000 / (m.descentWet * 3.7)).toFixed(2)}; minimum 300 m/s ideal reserve.`;
+  if (["orbital", "rendezvous", "probe"].includes(missionKind(destination)))
     checks.splice(5, 1);
   for (const id of requiredParts(destination, o).filter(
     (id) =>
@@ -236,6 +238,7 @@ export function preflight(
         "spectrometer",
         "drill",
         "sampler",
+        "probe",
         "solar",
         "battery",
         "antenna",
@@ -358,7 +361,7 @@ export function terrainHeight(
   z: number,
   destination: DestinationId = "mars",
 ) {
-  if (destination === "moon") {
+  if (destination === "moon" || destination === "mercury") {
     // Continuous local lunar terrain. Crater bowls and rims are analytic so
     // the renderer, landing solver and touchdown tests share the same surface.
     let h = 0.22 * Math.sin(x * 0.045) * Math.sin(z * 0.035)
@@ -417,7 +420,7 @@ export const initialLander = (
   y: 500,
   z: 0,
   vx: 0,
-  vy: destination === "moon" ? -8 : -12,
+  vy: destination === "moon" ? -8 : destination === "mercury" ? -14 : -12,
   vz: 0,
   tilt: 0,
   roll: 0,
@@ -457,7 +460,7 @@ export function landerStep(
   const desiredVy = -Math.min(18, Math.max(0.8, h * 0.38));
   const automatic =
     maximumThrust > 0
-      ? ((env.gravity + (desiredVy - s.vy) * 1.1) * m) / maximumThrust
+      ? ((env.gravity + (desiredVy - s.vy) * 1.1) * m) / (maximumThrust * Math.max(0.5, Math.cos(s.tilt)))
       : 0;
   s.throttle = clamp(
     control.assist
@@ -466,19 +469,21 @@ export function landerStep(
     0,
     1,
   );
+  // Thrust-vector attitude: up to 25° of tilt commanded by the pilot; when the
+  // stick is released, assist tilts against horizontal velocity to null drift.
   const targetRoll = clamp(
-      control.x * 0.14 - (control.assist ? s.vx * 0.07 : 0),
-      -0.22,
-      0.22,
+      control.x ? control.x * 0.44 : control.assist ? -s.vx * 0.09 : 0,
+      -0.44,
+      0.44,
     ),
     targetPitch = clamp(
-      control.z * 0.14 - (control.assist ? s.vz * 0.07 : 0),
-      -0.22,
-      0.22,
+      control.z ? control.z * 0.44 : control.assist ? -s.vz * 0.09 : 0,
+      -0.44,
+      0.44,
     );
-  s.yaw += (control.yaw??0)*dt*.4;
-  s.roll += (targetRoll - s.roll) * Math.min(1, dt * 4);
-  s.pitch += (targetPitch - s.pitch) * Math.min(1, dt * 4);
+  s.yaw += (control.yaw??0)*dt*.8;
+  s.roll += (targetRoll - s.roll) * Math.min(1, dt * 3);
+  s.pitch += (targetPitch - s.pitch) * Math.min(1, dt * 3);
   s.tilt = Math.acos(Math.cos(s.roll) * Math.cos(s.pitch));
   const demand = maximumThrust * s.throttle,
     used = Math.min(s.fuel, (demand / (220 * C.g0)) * dt),

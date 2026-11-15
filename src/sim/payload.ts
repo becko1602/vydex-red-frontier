@@ -5,7 +5,7 @@ import type { DestinationId } from '../data/destinations';
 // Conservative boxes enclosing the same local meshes used by Spacecraft. Metres.
 export function stowedBounds(id: PartId): { position:number[]; size:number[] } {
  const p=parts[id];
- if(id==='solar') return {position:[0,0.65,0],size:[2.55,1.3,1.05]};
+ if(id==='solar') return {position:[0,-0.3,0],size:[2.4,1.65,1.0]};
  if(id==='legs') return {position:[0,-0.45,0],size:[2.65,1.4,2.65]};
  if(id==='tank') return {position:p.position,size:[2.1,.75,1.4]};
  if(id==='body') return {position:p.position,size:[2.26,1.3,2.26]};

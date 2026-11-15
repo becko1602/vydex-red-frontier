@@ -73,10 +73,11 @@ import {
   TravelPanel,
   OrbitalPanel,
   LunarStation,
+  HazardAlert,
   FlightToolbar,
 } from "./ui/Flight";
 import { parts, installed, requiredParts, type PartId } from "./data/workshop";
-import { destinations, environment } from "./data/destinations";
+import { destinations, environment, isLunarLike } from "./data/destinations";
 import { launchFraction } from "./sim/journey";
 import Launchers, { RocketInformation } from "./ui/Launchers";
 import Observations from "./ui/Observations";
@@ -87,6 +88,7 @@ import FlightTouch from "./ui/FlightTouch";
 import ControlsGuide from "./ui/Controls";
 import InspectionControls, {openInspection} from "./ui/Inspection";
 import Thumbnails from "./scenes/Thumbnails";
+import RoverOps from "./ui/RoverOps";
 const RocketHangar = lazy(()=>import("./scenes/RocketHangar"));
 const Orbital = lazy(() => import("./scenes/Orbital"));
 const World = lazy(() => import("./scenes/World"));
@@ -473,8 +475,8 @@ function Landing() {
         </p>
         <h1>Make contact.</h1>
         <p>
-          {d.destination === "moon"
-            ? "Airless lunar descent. No atmospheric or parachute braking."
+          {isLunarLike(d.destination)
+            ? "Airless descent. No atmospheric or parachute braking."
             : "Atmospheric entry and heat-shield phases were compressed."}
           <br />
           You are controlling the final descent.
@@ -508,12 +510,12 @@ function Landing() {
             Your landing.
           </h2>
           <p>
-            Stabilization assist controls braking. Use W/S pitch and Q/E roll for modest
-            lateral steering; A/D changes yaw. Adjust throttle trim with the slider.
+            Stabilization assist controls vertical braking. W/S pitch and Q/E roll tilt the
+            thrust vector up to 25° to translate; A/D yaws. Shift/Ctrl trims throttle.
           </p>
           <p className="model-note">
             Uniform gravity: {environment(d.destination).gravity} m/s² ·{" "}
-            {d.destination === "moon"
+            {isLunarLike(d.destination)
               ? "airless vacuum"
               : "simplified exponential atmosphere"}{" "}
             · safe contact: vertical &lt;3 m/s, horizontal &lt;2 m/s, tilt
@@ -542,7 +544,7 @@ function Landing() {
           </span>
           <h2>
             {l.status === "safe"
-              ? `Welcome to ${d.destination === "moon" ? "the Moon" : "Mars"}.`
+              ? `Welcome to ${d.destination === "moon" ? "the Moon" : d.destination === "mercury" ? "Mercury" : "Mars"}.`
               : "A hard lesson."}
           </h2>
           <p>{l.reason}</p>
@@ -552,8 +554,8 @@ function Landing() {
             }
           >
             {l.status === "safe"
-              ? d.destination === "moon"
-                ? "Begin lunar science"
+              ? isLunarLike(d.destination)
+                ? "Begin surface science"
                 : "Deploy rover"
               : "Retry final descent"}{" "}
             {l.status === "safe" ? (
@@ -785,9 +787,10 @@ function Surface() {
         <p className="micro">
           ENERGY TIMELINE ×30
           <br />
-          FICTIONAL DUST TRANSMISSION: 72%
+          DUST TRANSMISSION 72% · ARRAY {(d.panelHealth * 100).toFixed(0)}%
         </p>
       </div>
+      <section className="surface-ops-panel"><RoverOps/></section>
       <div className="science-action" data-tutorial="collect-science">
         <div>
           <span className="eyebrow">
@@ -1423,10 +1426,20 @@ function useSimulation() {
       if (down && !e.repeat) {
         const ui=useGame.getState();
         if(k==='c'){
-          if(engine.data.stage==='surface'&&['mars','moon'].includes(engine.data.destination)){const modes=['chase','orbit','map'] as const;ui.setSettings({camera:modes[(modes.indexOf(ui.settings.camera)+1)%3]})}
+          if(engine.data.stage==='surface'){const modes=['chase','orbit','map'] as const;ui.setSettings({camera:modes[(modes.indexOf(ui.settings.camera)+1)%3]})}
           else {const modes=['follow','cinematic','overview'] as const;ui.setSettings({flightCamera:modes[(modes.indexOf(ui.settings.flightCamera)+1)%3]})}
         }
         if(k==='x'&&['landing','orbit'].includes(engine.data.stage))ui.act(()=>{engine.data.throttle=0;engine.data.engineEnabled=false});
+        const st=engine.data.stage;
+        if(k==='p'&&['cruise','orbit'].includes(st))ui.act(()=>engine.togglePanels());
+        if(k==='f'&&st==='orbit')ui.act(()=>engine.releaseProbe());
+        if(st==='surface'){
+          if(k==='l')ui.act(()=>engine.cycleHeadlights());
+          if(k==='i')ui.act(()=>engine.inspect());
+          if(k==='b')ui.act(()=>engine.serviceAtBase());
+          if(k==='t')ui.act(()=>engine.transmit());
+          if(k==='v')window.dispatchEvent(new CustomEvent('vydex:record'));
+        }
 
         if (k === "escape") {
           const ui = useGame.getState();
@@ -1571,7 +1584,7 @@ export default function App() {
       ) : stage === "orbit" ? (
         <OrbitalPanel />
       ) : stage === "surface" ? (
-        useGame.getState().data.destination === "moon" ? (
+        isLunarLike(useGame.getState().data.destination) ? (
           <LunarStation />
         ) : (
           <Surface />
@@ -1580,6 +1593,7 @@ export default function App() {
         <Debrief />
       )}
       {!useGame(s=>s.settings.inspection) && <Telemetry/>}
+      {["cruise","orbit"].includes(stage) && <HazardAlert/>}
       <Why />
       {stage !== "briefing" && (
         <footer>

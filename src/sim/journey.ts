@@ -1,3 +1,4 @@
+import { TRANSFER } from "../data/destinations";
 import type { FlightData } from "./game";
 import { transferModel } from "./physics";
 import {
@@ -27,6 +28,22 @@ export function launchPhase(d: FlightData) {
               : "DEPARTURE BURN";
 }
 export function routeInfo(d: FlightData) {
+  if (!["mars", "moon", "asteroid", "earth"].includes(d.destination)) {
+    const t = TRANSFER[d.destination];
+    const outer = ["jupiter", "saturn", "uranus", "neptune"].includes(d.destination);
+    return {
+      seconds: t.realDays * 86400,
+      title: d.destination === "venus"
+        ? "Hohmann-type transfer inward to Venus"
+        : d.destination === "mercury"
+          ? "Multi-flyby inward transfer (BepiColombo-style)"
+          : "Gravity-assist cruise to the outer Solar System",
+      detail: outer
+        ? `~${(t.realDays / 365.25).toFixed(1)} years of cruise compressed; planetary flybys are summarized, not simulated.`
+        : `~${t.realDays} days of cruise compressed. Planet positions are illustrative, not a live ephemeris.`,
+      screenSeconds: d.demo ? 18 : t.playSeconds,
+    };
+  }
   return d.destination === "mars"
     ? {
         seconds: transferModel().time,

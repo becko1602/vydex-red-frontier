@@ -13,6 +13,8 @@ import { payloadEnvelope } from "../sim/payload";
 import { launchFraction, launchDuration } from "../sim/journey";
 import { launchers } from "../data/launchVehicles";
 import { solarSystem } from "../data/solarSystem";
+import SolarTransfer from "./SolarTransfer";
+import { LaunchEnvironment, PadInfrastructure, ExhaustPlume, LaunchClouds, Deluge, VaporCone, LAUNCH_UNITS_PER_M } from "./LaunchSite";
 import {
   heliocentricBodyIds,
   heliocentricPosition,
@@ -170,7 +172,8 @@ function Launch() {
     paused = useGame((s) => s.paused);
   const carrier = useRef<THREE.Group>(null),
     payload = useRef<THREE.Group>(null),
-    spaceStars = useRef<THREE.Group>(null);
+    altitudeM = useRef(0),
+    rocketPos = useRef(new THREE.Vector3());
   const { camera, scene } = useThree(),
     target = useMemo(() => new THREE.Vector3(), []),
     cam = useMemo(() => new THREE.Vector3(), []);
@@ -179,11 +182,17 @@ function Launch() {
     spread = clamp((p - 0.38) / 0.12, 0, 1),
     layout=rocketLayout(d.design.launcher??"titan"), envelope=payloadEnvelope(d.design),
     launcher= d.design.launcher??"titan",
+    coreR = (launchers[d.design.launcher??"titan"].diameter / 2) * ROCKET_VISUAL_SCALE,
+    sepStart = (d.design.launcher ?? "titan") === "titan" ? 0.49 : 0.38,
+    jointY = rocketLayout(d.design.launcher ?? "titan").body * 0.64 * ROCKET_VISUAL_SCALE,
     ascent=launchAscent(launchers[launcher].ascentModel, masses(d.design).wet, Math.max(0,d.stageTime-launchDuration(d)*.12));
   useFrame((_, dt) => {
     const data = engine.data,
       progress = launchFraction(data),
-      lift = progress < .12 ? 0 : ascent.altitudeM * .014,
+      // Presentation altitude, time-compressed to match the staging cues:
+      // Max-Q ≈ 11 km, booster separation ≈ 45 km, fairing jettison ≈ 110 km.
+      visAlt = progress < .12 ? 0 : 205000 * Math.pow(clamp((progress - .12) / .58, 0, 1), 2.1),
+      lift = Math.max(progress < .12 ? 0 : ascent.altitudeM * .014, visAlt * LAUNCH_UNITS_PER_M),
       angle = Math.max(0, progress - 0.7) * 0.8;
     target.set(Math.sin(angle) * 140, -60 + Math.cos(angle) * 140, 0);
     if (progress < 0.7) target.set(0, lift + layout.payloadY, 0);
@@ -202,11 +211,9 @@ function Launch() {
       );
       payload.current.rotation.y = Math.max(0,progress-.7)*.4;
     }
-    if (spaceStars.current) spaceStars.current.visible = progress > 0.48;
-    if (scene.background instanceof THREE.Color)
-      scene.background
-        .copy(new THREE.Color("#7895a5"))
-        .lerp(new THREE.Color("#060d16"), clamp((progress - 0.25) / 0.5, 0, 1));
+    altitudeM.current = Math.max(lift, target.y) / LAUNCH_UNITS_PER_M;
+    if (carrier.current) rocketPos.current.copy(carrier.current.position);
+    void scene;
     const zoom = settings.flightZoom || 1;
     if (settings.flightCamera === "overview")
       cam.set(target.x + 34 * zoom, target.y + 20 * zoom, target.z + 42 * zoom);
@@ -238,32 +245,44 @@ function Launch() {
   });
   return (
     <>
-      <ambientLight intensity={0.55} />
-      <directionalLight
-        position={[-60, 70, 30]}
-        intensity={3.4}
-        color="#fff0d7"
-      />
-      <group ref={spaceStars}>
-        <Stars radius={400} depth={200} count={850} factor={3} fade speed={0} />
-      </group>
-      <group position={[0, -400, 0]}>
-        <Planet kind="earth" radius={400} spin={false} />
-      </group>
+      <LaunchEnvironment altitudeM={altitudeM} />
+      <PadInfrastructure rocketHeight={layout.height} />
       <LaunchComplex
         height={layout.height}
         active={d.launchChecks.every(Boolean) && p > 0.065}
         liftoff={p > 0.12}
       />
-      <LaunchSmoke active={!paused && d.launchChecks.every(Boolean) && p > 0.12 && p < 0.7} />
+      <Deluge active={() => !useGame.getState().paused && engine.data.launchChecks.every(Boolean) && launchFraction(engine.data) > 0.07 && launchFraction(engine.data) < 0.2} />
+      <LaunchClouds
+        active={() => !useGame.getState().paused && engine.data.launchChecks.every(Boolean) && launchFraction(engine.data) > 0.12 && launchFraction(engine.data) < 0.7}
+        rocket={rocketPos}
+        altitudeM={altitudeM}
+      />
       <group ref={carrier}>
         <LaunchVehicle
-          id={d.design.launcher??"titan"}
-          upperSeparation={clamp((p-(d.design.launcher==='titan'?0.49:0.38))/.13,0,1)}
-          firing={d.launchChecks.every(Boolean) && p > 0.12 && p < 0.7}
+          id={launcher}
+          upperSeparation={clamp((p-(launcher==='titan'?0.49:0.38))/.13,0,1)}
+          firing={false}
           fairingOpen={settings.payloadView ? 0.85 : reveal}
           separation={spread}
         />
+        {/* Core-stage plume */}
+        <group position={[0, -0.05, 0]}>
+          <ExhaustPlume radius={coreR} altitudeM={altitudeM} throttle={() => { const q = launchFraction(engine.data); return engine.data.launchChecks.every(Boolean) && q > 0.115 && q < sepStart + 0.01 && !useGame.getState().paused ? 1 : 0; }} />
+        </group>
+        {/* Upper-stage vacuum engine after staging */}
+        <group position={[0, jointY - 0.05, 0]}>
+          <ExhaustPlume radius={coreR * 0.6} altitudeM={altitudeM} throttle={() => { const q = launchFraction(engine.data); return engine.data.launchChecks.every(Boolean) && q > sepStart + 0.03 && q < 0.7 && !useGame.getState().paused ? 0.8 : 0; }} />
+        </group>
+        {/* Solid rocket booster plumes until separation */}
+        {launchers[launcher].boosters > 0 && [-1, 1].map((side) => (
+          <group key={side} position={[side * coreR * 1.65, -0.05, 0]}>
+            <ExhaustPlume solid radius={coreR * 0.44} altitudeM={altitudeM} throttle={() => { const q = launchFraction(engine.data); return engine.data.launchChecks.every(Boolean) && q > 0.12 && q < 0.38 && !useGame.getState().paused ? 1 : 0; }} />
+          </group>
+        ))}
+        <group position={[0, layout.height * 0.62, 0]}>
+          <VaporCone altitudeM={altitudeM} radius={coreR} />
+        </group>
       </group>
       <group ref={payload}>
         <group position={[0,-envelope.centerY,0]}><Spacecraft design={d.design} solarDeployed={false} stowed /></group>
@@ -598,7 +617,7 @@ export default function Cosmos() {
       {stage === "launch" ? (
         <Launch />
       ) : stage === "cruise" ? (
-        <Travel />
+        <SolarTransfer />
       ) : (
         <>
           <ambientLight intensity={0.12} />

@@ -4627,3 +4627,52 @@ footer i:not(.status-dot) {
 .flight-ui .flight-toolbar{left:auto;right:32px;bottom:26px;transform:none;max-width:min(52vw,650px)}.flight-ui .landing-cue{top:auto;bottom:100px;left:50%;transform:translateX(-50%)}
 @media(max-width:900px){.flight-ui .flight-title{left:20px;top:16px;max-width:42vw}.flight-ui .landing-telemetry{right:16px;top:16px;width:min(360px,48vw)}.flight-ui .landing-controls{left:16px;bottom:18px;width:270px}.flight-ui .flight-toolbar{right:16px;bottom:18px;max-width:calc(100vw - 320px);gap:6px;padding:8px}.flight-ui .landing-cue{bottom:115px}}
 @media(max-width:620px){.flight-ui .flight-title{top:12px;left:12px;max-width:43vw}.flight-ui .flight-title h1{font-size:24px;margin:7px 0}.flight-ui .flight-title p:not(.eyebrow){font-size:9px;line-height:1.45}.flight-ui .landing-telemetry{top:125px;left:12px;right:12px;width:auto;padding:7px 9px;gap:4px 12px}.flight-ui .landing-telemetry .stat{gap:2px}.flight-ui .landing-telemetry .stat strong{font-size:17px}.flight-ui .landing-telemetry .stat>span{font-size:8px}.flight-ui .landing-telemetry .stat small{font-size:9px}.flight-ui .landing-controls{left:12px;right:12px;bottom:70px;width:auto;padding:8px 10px}.flight-ui .landing-controls .toggle-row{margin-bottom:5px;font-size:9px}.flight-ui .landing-controls .slider-label{margin:5px 0 0}.flight-ui .landing-controls .micro{display:none}.flight-ui .flight-toolbar{left:12px;right:12px;bottom:10px;max-width:none;justify-content:space-between;padding:5px 7px;gap:4px}.flight-ui .flight-camera-options button{padding:6px 4px;font-size:8px}.flight-ui .flight-toolbar label{font-size:7px}.flight-ui .flight-toolbar input{width:58px}.flight-ui .flight-toolbar select{width:82px}.flight-ui .landing-cue{bottom:183px;left:12px;transform:none;max-width:calc(100vw - 24px);white-space:normal;font-size:8px}.flight-ui .center-dialog{top:54%;width:min(340px,calc(100vw - 30px));padding:16px}.flight-ui .center-dialog h2{font-size:23px;margin:9px 0}.flight-ui .center-dialog p{font-size:10px;line-height:1.55;margin:8px 0}}
+
+/* ---- Realism update: new HUD elements ---- */
+.app:has(.flight-ui) .why{left:auto;right:42px;top:318px;bottom:auto;width:300px}
+.app:has(.flight-ui) .why:not(.expanded){opacity:.92}
+@media(max-width:900px){.app:has(.flight-ui) .why{top:auto;bottom:250px;right:16px;width:260px}}
+.hazard-alert{position:absolute;left:50%;top:150px;transform:translateX(-50%);z-index:8;padding:9px 16px;border-radius:3px;font:10px/1.3 monospace;letter-spacing:.9px;color:#e9dccb;background:#1a1f22e6;border:1px solid #ffffff22;border-left:3px solid #d8b26a;pointer-events:none}
+.hazard-alert.danger{color:#ffd9cf;border-left-color:#ff5b3b;background:#2a1411ee;animation:hazardPulse 1s ease-in-out infinite}
+@keyframes hazardPulse{50%{box-shadow:0 0 0 3px #ff5b3b33}}
+.stow-control{display:flex;align-items:center;gap:10px;margin:12px 0;flex-wrap:wrap}
+.stow-control .btn{padding:8px 12px;font-size:11px}
+.stow-control .btn.active{border-color:#d8b26a;color:#f2d79a}
+.stow-control span{font:9px monospace;color:#9fb6bd;letter-spacing:.4px}
+.probe-status{margin:10px 0 4px}
+.probe-phase{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.probe-phase span{font:8px monospace;letter-spacing:.5px;padding:4px 6px;border:1px solid #ffffff1c;border-radius:2px;color:#7f969c}
+.probe-phase span.done{color:#a7cdab;border-color:#a7cdab55}
+.probe-phase span.now{color:#ffd9a8;border-color:#e4a666;background:#e4a66614}
+.probe-grid{grid-template-columns:repeat(2,1fr)}
+.space-label-card{display:flex;flex-direction:column;align-items:center;gap:2px;white-space:nowrap;text-shadow:0 1px 3px #000;transform:translateY(-4px)}
+.space-label-card b{font:600 10px/1 system-ui,sans-serif;letter-spacing:1.4px}
+.space-label-card small{font:8px/1 monospace;color:#8ea4ab;letter-spacing:.4px}
+.base-label{border-left-color:#58f0b4 !important}
+.rover-ops{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}
+.rover-ops button{font:9px monospace;letter-spacing:.5px;padding:8px 4px;border:1px solid #ffffff22;border-radius:3px;color:#cfe0e3;background:#0f1a20cc;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rover-ops button:hover:not(:disabled){border-color:#9adbe1aa}
+.rover-ops button:disabled{opacity:.4}
+.rover-ops button.on{border-color:#ff5b3b;color:#ffc9bd}
+.rover-ops kbd{font:8px monospace;color:#7c959b}
+.sol-clock{display:flex;justify-content:space-between;font:9px monospace;color:#9fb6bd;margin-top:6px}
+.rec-badge{position:absolute;top:120px;left:50%;transform:translateX(-50%);z-index:8;font:10px monospace;letter-spacing:1px;color:#ffd0c6;background:#2a0f0cdd;border:1px solid #ff5b3b88;padding:6px 12px;border-radius:3px;display:flex;align-items:center;gap:8px}
+.rec-badge i{width:8px;height:8px;border-radius:50%;background:#ff3b30;animation:hazardPulse 1s infinite}
+.planet-facts{margin-top:12px;border-top:1px solid #ffffff1a;padding-top:10px}
+.planet-facts dl{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:6px 0 0}
+.planet-facts dt{font:8px monospace;color:#7f969c;letter-spacing:.5px}
+.planet-facts dd{margin:0;font:11px/1.3 system-ui,sans-serif;color:#dfe9ea}
+.lunar-ops-panel{position:absolute;left:42px;top:300px;width:330px;padding:14px}
+@media(max-width:900px){.lunar-ops-panel{left:12px;right:12px;width:auto;bottom:190px}}
+.surface-telemetry .rover-operations{margin:8px 0}
+.launcher-perf{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin:10px 0;padding:10px 0;border-top:1px solid #ffffff1a;border-bottom:1px solid #ffffff1a}
+.launcher-perf dt{font:8px monospace;letter-spacing:.5px;color:#8ea4ab;text-transform:uppercase}
+.launcher-perf dd{margin:2px 0 0;font:600 13px/1.2 system-ui,sans-serif;color:#eef3f3}
+.lunar-drive-controls{top:auto;bottom:100px;right:auto;left:50%;transform:translateX(-50%);grid-auto-flow:column;align-items:center}
+.surface-ops-panel{position:absolute;left:50%;transform:translateX(-50%);bottom:212px;width:min(620px,calc(100vw - 820px));min-width:420px;padding:10px 12px;background:#0d1a20e6;border:1px solid #ffffff1f;border-radius:4px;z-index:6}
+.surface-ops-panel .rover-ops{grid-template-columns:repeat(6,1fr);margin:0 0 8px}
+.surface-ops-panel .rec-badge{top:-44px}
+.rover-minimap{right:300px !important;bottom:300px !important}
+@media(max-width:1100px){.surface-ops-panel{left:12px;right:12px;width:auto;min-width:0;transform:none;bottom:250px}.surface-ops-panel .rover-ops{grid-template-columns:repeat(3,1fr)}.rover-minimap{right:25px !important;bottom:170px !important}}
+.flight-ui .landing-cue{bottom:150px !important}.flight-ui .flight-touch{bottom:150px}
+.orbital-ui .flight-touch{bottom:200px}.orbital-ui .orbit-local-label{bottom:auto;top:250px;left:60px}

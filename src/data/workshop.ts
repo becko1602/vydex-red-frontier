@@ -4,7 +4,7 @@ import {
   type Objective,
   type StructuralPart,
 } from "./gameBalance";
-import type { DestinationId } from "./destinations";
+import { missionKind, type DestinationId } from "./destinations";
 export type PartId =
   | StructuralPart
   | "battery"
@@ -308,6 +308,22 @@ export const parts: Record<PartId, PartSpec> = {
     performance: "75 W for 10 s; VY-26 is a fictional target",
     source: "asteroids",
   },
+  probe: {
+    name: "Atmospheric entry probe",
+    purpose: "A detachable zond with heat shield and parachute that descends into a gas giant or Venus and radios atmospheric data to the orbiter.",
+    mass: 120,
+    credits: 9,
+    power: 40,
+    slot: "Forward probe adapter",
+    position: [0, 1.25, -0.15],
+    size: [1.35, 0.75, 1.35],
+    advantage: "Measures pressure, temperature and composition in place, where an orbiter can only look from above.",
+    tradeoff: "120 kg of entry hardware; a one-shot instrument that survives only ~1 hour inside the atmosphere.",
+    omission: "A probe mission to Venus or the giant planets cannot sample the atmosphere.",
+    example: "Stabilize the orbiter, release the probe, then relay its readings during the parachute descent.",
+    performance: "45° sphere-cone aeroshell, pilot + main parachute, 40 W science bus, relay via orbiter",
+    source: "jpl",
+  },
 };
 export const partIds = Object.keys(parts) as PartId[];
 export const structuralIds = partIds.filter(
@@ -324,7 +340,7 @@ export const structuralIds = partIds.filter(
 export function installed(d: Design, id: PartId) {
   return id in d
     ? Boolean(d[id as keyof Design])
-    : (d.parts?.[id as StructuralPart] ?? id !== "sampler");
+    : (d.parts?.[id as StructuralPart] ?? (id !== "sampler" && id !== "probe"));
 }
 export function changePart(d: Design, id: PartId, value: boolean): Design {
   if (
@@ -334,7 +350,7 @@ export function changePart(d: Design, id: PartId, value: boolean): Design {
   )
     return { ...d, [id]: value };
   const legacy = Object.fromEntries(
-    structuralIds.map((k) => [k, k !== "sampler"]),
+    structuralIds.map((k) => [k, k !== "sampler" && k !== "probe"]),
   );
   return { ...d, parts: { ...legacy, ...d.parts, [id]: value } };
 }
@@ -358,9 +374,13 @@ export function compatibility(
       return "The core drill fits the Mars rover tool socket. Install the rover first.";
     if (id === "sampler" && destination !== "asteroid")
       return "The sampling arm fits the asteroid probe mission only.";
+    if (id === "probe" && missionKind(destination) !== "probe")
+      return "The entry probe is for Venus and the giant planets, where there is no safe solid landing surface.";
+    if (id === "rover" && missionKind(destination) === "probe")
+      return "There is no solid surface to drive on. Use the atmospheric entry probe.";
     if (
       ["legs", "descentEngine"].includes(id) &&
-      ["earth", "asteroid"].includes(destination)
+      ["orbital", "rendezvous", "probe"].includes(missionKind(destination))
     )
       return "This orbital mission uses cruise-engine RCS; landing equipment is not required or compatible.";
   } else {
@@ -404,8 +424,10 @@ export function requiredParts(
           ? (["camera"] as PartId[])
           : (["spectrometer", "drill"] as PartId[])),
       ]
-    : destination === "moon"
+    : missionKind(destination) === "lander"
       ? [...base, "descentEngine", "legs", "camera", "spectrometer"]
+      : missionKind(destination) === "probe"
+        ? [...base, "camera", "probe"]
       : destination === "asteroid"
         ? [...base, "spectrometer", "sampler"]
         : [...base, "camera"];
@@ -418,6 +440,8 @@ export function missionStarter(
   for (const id of partIds)
     d = changePart(d, id, requiredParts(destination, objective).includes(id));
   if (destination === "moon") d = { ...d, cruiseFuel: 150, descentFuel: 100 };
+  if (destination === "mercury") d = { ...d, cruiseFuel: 260, descentFuel: 160 };
+  if (missionKind(destination) === "probe") d = { ...d, cruiseFuel: 300, descentFuel: 0 };
   if (destination === "earth") d = { ...d, cruiseFuel: 80, descentFuel: 0 };
   if (destination === "asteroid") d = { ...d, cruiseFuel: 160, descentFuel: 0 };
   return d;
@@ -431,7 +455,7 @@ export function emptyDesign(destination: DestinationId = "mars"): Design {
     solar: false,
     antenna: false,
     parts: Object.fromEntries(structuralIds.map((id) => [id, false])),
-    cruiseFuel: destination === "earth" ? 80 : destination === "moon" ? 150 : destination === "asteroid" ? 160 : 220,
-    descentFuel: destination === "earth" || destination === "asteroid" ? 0 : destination === "moon" ? 100 : 160,
+    cruiseFuel: destination === "earth" ? 80 : destination === "moon" ? 150 : destination === "asteroid" ? 160 : missionKind(destination) === "probe" ? 300 : destination === "mercury" ? 260 : 220,
+    descentFuel: ["orbital", "rendezvous", "probe"].includes(missionKind(destination)) ? 0 : destination === "moon" ? 100 : 160,
   };
 }

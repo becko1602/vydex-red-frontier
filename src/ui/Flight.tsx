@@ -1,3 +1,7 @@
+import { missionKind, TRANSFER } from "../data/destinations";
+import { PROBE_PHASES } from "../sim/probe";
+import { installed } from "../data/workshop";
+import RoverOps from "./RoverOps";
 import {
   ArrowRight,
   Check,
@@ -299,11 +303,7 @@ export function TravelPanel() {
         <div className="burn-row">
           <b>Required correction / alignment burn</b>
           <p>
-            {d.destination === "mars"
-              ? 120
-              : d.destination === "moon"
-                ? 60
-                : 30}{" "}
+            {TRANSFER[d.destination].correctionDv}{" "}
             m/s · cruise propellant only
           </p>
           <button
@@ -374,9 +374,9 @@ export function TravelPanel() {
             ))}
           </div>
           <small>
-            Rounded educational orbits share the transfer simulation clock.
-            Display radii are compressed for clarity.
+            Inner planets are drawn at true relative distance; beyond Mars distances are compressed. Planet sizes are enlarged ~2000× for visibility.
           </small>
+          <PlanetFacts id={settings.selectedPlanet} />
         </div>
         {d.decisionLog.length > 0 && (
           <details className="mission-log">
@@ -392,7 +392,7 @@ export function TravelPanel() {
           onClick={() =>
             act(() => {
               engine.explain(
-                d.destination === "moon" || d.destination === "mars"
+                ["moon", "mars", "mercury"].includes(d.destination)
                   ? "Cruise stage separated. The final-descent frame now uses local metres."
                   : "Arrival handover: local controls now operate the assembled mission payload.",
               );
@@ -406,9 +406,12 @@ export function TravelPanel() {
               ? "Begin satellite deployment"
               : d.destination === "asteroid"
                 ? "Begin rendezvous"
-                : "Begin final descent"}
+                : missionKind(d.destination) === "probe"
+                  ? "Orbit insertion"
+                  : "Begin final descent"}
           <ArrowRight size={16} />
         </button>
+        <PanelStowControl />
         <p className="model-note">
           Required operations remain interactive. Changing presentation speed
           changes wall-clock duration, not the scientific constants or burn Δv.
@@ -433,28 +436,29 @@ export function OrbitalPanel() {
     act = useGame((s) => s.act),
     o = d.orbital,
     asteroid = d.destination === "asteroid",
-    ready = asteroid ? sampleCorridor(o) : o.deployed && stableAttitude(o),
+    probeMission = missionKind(d.destination) === "probe",
+    ready = asteroid ? sampleCorridor(o) : probeMission ? stableAttitude(o) : o.deployed && stableAttitude(o),
     orbit = earthOrbit();
   return (
     <main className="journey-ui orbital-ui">
       <section className="flight-title">
         <p className="eyebrow">
-          06 / {asteroid ? "ASTEROID PROXIMITY" : "EARTH ORBITAL DEPLOYMENT"}
+          06 / {asteroid ? "ASTEROID PROXIMITY" : probeMission ? `${destinations[d.destination].name} ORBIT · ENTRY PROBE` : "EARTH ORBITAL DEPLOYMENT"}
         </p>
         <h1>
           {asteroid
             ? "Small forces. Precise moves."
-            : "Give your satellite a purpose."}
+            : probeMission ? "Drop into the clouds." : "Give your satellite a purpose."}
         </h1>
         <p>
           {asteroid
             ? "Fictional VY-26 · local relative metres · negligible gravity and no drag"
-            : "Calculated circular 400 km reference orbit · local attitude uses fuel-consuming RCS"}
+            : probeMission ? "No solid surface: the orbiter releases an aeroshell probe and relays its parachute descent" : "Calculated circular 400 km reference orbit · local attitude uses fuel-consuming RCS"}
         </p>
       </section>
       <section className="mission-panel orbital-panel">
         <div className="panel-heading">
-          <h2>{asteroid ? "Rendezvous control" : "Deployment control"}</h2>
+          <h2>{asteroid ? "Rendezvous control" : probeMission ? "Orbiter & probe control" : "Deployment control"}</h2>
           <PartHelp id="computer" />
         </div>
         {asteroid ? (
@@ -517,7 +521,7 @@ export function OrbitalPanel() {
               W/S pitch · A/D yaw · Q/E roll · Space stabilize. Deployment requires angles
               &lt;7° and angular rates &lt;0.04 rad/s.
             </p>
-            <button
+            {probeMission ? <ProbeStatus /> : <button
               className="btn"
               data-tutorial="deploy-satellite"
               disabled={o.deployed || !stableAttitude(o)}
@@ -526,14 +530,14 @@ export function OrbitalPanel() {
               {o.deployed
                 ? "✓ Satellite deployed"
                 : "Deploy satellite & solar array"}
-            </button>
-            <p className="model-note">
+            </button>}
+            {!probeMission && <p className="model-note">
               Orbit speed {(orbit.speed / 1000).toFixed(2)} km/s; period{" "}
               {(orbit.period / 60).toFixed(1)} min. Orbital background time ×30;
               local attitude time ×1; electrical time ×30. Derived from sourced
               Earth GM and radius; the 400 km orbit is a fictional selected
               scenario.
-            </p>
+            </p>}
           </>
         )}
         <label className="toggle-row">
@@ -548,6 +552,7 @@ export function OrbitalPanel() {
           />
           Stabilization assist
         </label>
+        <PanelStowControl />
         <div className="orbital-science" data-tutorial="orbital-science">
           {engine.targets().map((t) => (
             <div key={t.id}>
@@ -597,7 +602,7 @@ export function OrbitalPanel() {
           · acknowledgment display 6 s.{" "}
           {asteroid
             ? "Fictional 18-million-km Earth range."
-            : "Ideal overhead 400 km link."}
+            : probeMission ? `${(engine.delay() / 60).toFixed(1)} min light-time to Earth.` : "Ideal overhead 400 km link."}
         </p>
         {o.crashed && (
           <div className="fit-error">
@@ -621,9 +626,78 @@ export function OrbitalPanel() {
       <div className="orbit-local-label">
         {asteroid
           ? "LOCAL PROXIMITY FRAME / 1 UNIT = 1 M"
-          : "CIRCULAR ORBIT PRESENTATION / ENLARGED SPACECRAFT"}
+          : probeMission ? "ORBITER VIEW · PLANET AT TRUE CURVATURE" : "CIRCULAR ORBIT PRESENTATION / ENLARGED SPACECRAFT"}
       </div>
     </main>
+  );
+}
+const MEAN_TEMP_C: Record<string, number> = { sun: 5505, mercury: 167, venus: 464, earth: 15, moon: -20, mars: -63, jupiter: -108, saturn: -139, uranus: -195, neptune: -200 };
+function PlanetFacts({ id }: { id: keyof typeof solarSystem }) {
+  const b = solarSystem[id];
+  const years = b.orbitalPeriodS / (365.256 * 86400);
+  return (
+    <div className="planet-facts">
+      <b>{b.name.toUpperCase()}</b>
+      <dl>
+        <div><dt>DIAMETER</dt><dd>{Math.round((b.radiusM * 2) / 1000).toLocaleString("en-US")} km</dd></div>
+        <div><dt>MASS</dt><dd>{b.massKg.toExponential(2).replace("e+", " × 10^")} kg</dd></div>
+        <div><dt>SURFACE / 1-BAR GRAVITY</dt><dd>{b.gravityMS2.toFixed(2)} m/s²</dd></div>
+        <div><dt>MEAN TEMPERATURE</dt><dd>{MEAN_TEMP_C[id]} °C</dd></div>
+        <div><dt>ORBITAL PERIOD</dt><dd>{b.orbitalPeriodS ? (years < 2 ? `${(years * 365.256).toFixed(0)} days` : `${years.toFixed(1)} years`) : "—"}</dd></div>
+        <div><dt>AXIAL TILT</dt><dd>{b.axialTiltDeg}°</dd></div>
+      </dl>
+      <small>{b.atmosphere}</small>
+    </div>
+  );
+}
+export function PanelStowControl() {
+  const d = useGame((s) => s.data),
+    act = useGame((s) => s.act);
+  if (!d.design.solar) return null;
+  return (
+    <div className="stow-control">
+      <button className={`btn secondary ${d.panelsStowed ? "active" : ""}`} onClick={() => act(() => engine.togglePanels())}>
+        {d.panelsStowed ? "Deploy solar wings (P)" : "Stow solar wings (P)"}
+      </button>
+      <span>Array {(d.panelHealth * 100).toFixed(0)}% · {d.panelsStowed ? "folded, 0 W" : `${engine.arrayOutput().toFixed(0)} W`}</span>
+    </div>
+  );
+}
+export function HazardAlert() {
+  const alert = useGame((s) => s.data.alert),
+    active = useGame((s) => s.data.debrisActive > 0 || s.data.debrisIn <= 12);
+  if (!alert) return null;
+  return <div className={`hazard-alert ${active ? "danger" : ""}`} role="status">{alert}</div>;
+}
+export function ProbeStatus() {
+  const d = useGame((s) => s.data),
+    act = useGame((s) => s.act),
+    p = d.probe,
+    spec = PROBE_PHASES[p.phase];
+  const has = installed(d.design, "probe");
+  return (
+    <div className="probe-status">
+      <div className="probe-phase">
+        {(["attached", "coast", "entry", "parachute", "descent", "complete"] as const).map((ph) => (
+          <span key={ph} className={ph === p.phase ? "now" : Object.keys(PROBE_PHASES).indexOf(ph) < Object.keys(PROBE_PHASES).indexOf(p.phase) ? "done" : ""}>{PROBE_PHASES[ph].label}</span>
+        ))}
+      </div>
+      {p.phase === "attached" ? (
+        <button className="btn" disabled={!has || !stableAttitude(d.orbital)} onClick={() => act(() => engine.releaseProbe())}>
+          {has ? "Release entry probe (F)" : "No probe installed"}
+        </button>
+      ) : (
+        <div className="report-grid probe-grid">
+          <div className="stat"><span>{d.destination === "venus" ? "ALTITUDE" : "ALT. vs 1 BAR"}</span><strong>{p.altitudeKm.toFixed(1)}<small>km</small></strong></div>
+          <div className="stat"><span>PRESSURE</span><strong>{p.pressureBar < 0.01 ? p.pressureBar.toExponential(1) : p.pressureBar.toFixed(2)}<small>bar</small></strong></div>
+          <div className="stat"><span>TEMPERATURE</span><strong>{p.temperatureK ? (p.temperatureK - 273.15).toFixed(0) : "—"}<small>°C</small></strong></div>
+          <div className="stat"><span>{p.phase === "entry" ? "ENTRY SPEED" : "DESCENT RATE"}</span><strong>{p.velocity > 2000 ? (p.velocity / 1000).toFixed(1) : p.velocity.toFixed(0)}<small>{p.velocity > 2000 ? "km/s" : "m/s"}</small></strong></div>
+          <div className="stat"><span>PEAK LOAD</span><strong>{p.peakG.toFixed(0)}<small>g</small></strong></div>
+          <div className="stat"><span>RELAYED DATA</span><strong>{p.dataKb.toFixed(0)}<small>kbit</small></strong></div>
+        </div>
+      )}
+      <p className="model-note">{spec.label}{p.phase !== "attached" && p.phase !== "complete" ? ` · T+${(p.t).toFixed(0)} s (compressed)` : ""}</p>
+    </div>
   );
 }
 export function LunarStation() {
@@ -634,8 +708,8 @@ export function LunarStation() {
   return (
     <main className="journey-ui">
       <section className="flight-title">
-        <p className="eyebrow">06 / LUNAR SURFACE STATION</p>
-        <h1>Science in the silence.</h1>
+        <p className="eyebrow">06 / {d.destination === "mercury" ? "MERCURY" : "LUNAR"} SURFACE STATION</p>
+        <h1>{d.destination === "mercury" ? "Science beside the Sun." : "Science in the silence."}</h1>
         <p>
           Airless lunar terrain. Drive the small rover with WASD or arrows; Space brakes.
           Scroll or pinch in orbit view to zoom.
@@ -692,7 +766,7 @@ export function LunarStation() {
         >
           {d.transmitting
             ? "Awaiting acknowledgment…"
-            : "Transmit lunar observations"}
+            : `Transmit ${d.destination === "mercury" ? "Mercury" : "lunar"} observations`}
         </button>
         <p className="model-note">
           Earth light time {engine.delay().toFixed(2)} s one way. Acknowledgment
@@ -703,6 +777,7 @@ export function LunarStation() {
             "Use both instruments. All observation results are fictional and educational."}
         </p>
       </section>
+      <section className="mission-panel lunar-ops-panel"><RoverOps /></section>
       <div className="lunar-drive-controls">
         <span>ROVER {Math.abs(d.rover.speed).toFixed(1)} m/s · {d.rover.distance.toFixed(0)} m traveled</span>
         <div className="camera-buttons" aria-label="Lunar camera mode">
