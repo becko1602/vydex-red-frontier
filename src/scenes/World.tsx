@@ -13,6 +13,7 @@ import { Planet } from "./Planet";
 import { isLunarLike, SURFACE_GRAVITY, type DestinationId } from "../data/destinations";
 import { makeSurfaceTextures } from "./surfaceTextures";
 import { hardwareTextures } from "./hardwareTextures";
+import { panelSet, metalSet, regolithSet } from "./materials";
 const terrainHeight = (x: number, z: number) =>
   terrainModel(x, z, engine.data.destination);
 /** True body radii (m) — used for the horizon curvature drop d²/2R. */
@@ -36,8 +37,7 @@ function groundColor(dest: DestinationId, x: number, z: number, h: number, c: TH
 /** Detailed local terrain (the solver's height field). */
 function Terrain() {
   const dest = engine.data.destination;
-  const texture = useMemo(() => makeSurfaceTextures(isLunarLike(dest)), [dest]);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const rego = useMemo(() => regolithSet(dest === "moon" ? "moon" : dest === "mercury" ? "mercury" : "mars"), [dest]);
   const geometry = useMemo(() => {
     const g = new THREE.PlaneGeometry(600, 600, 200, 200);
     g.rotateX(-Math.PI / 2);
@@ -57,7 +57,7 @@ function Terrain() {
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh geometry={geometry} receiveShadow>
-      <meshStandardMaterial vertexColors map={texture.color} bumpMap={texture.bump} bumpScale={0.04} roughness={1} />
+      <meshStandardMaterial vertexColors map={rego.map} bumpMap={rego.bumpMap} bumpScale={1.4} roughness={1} />
     </mesh>
   );
 }
@@ -68,8 +68,7 @@ function Terrain() {
  */
 function HorizonRing() {
   const dest = engine.data.destination;
-  const texture = useMemo(() => makeSurfaceTextures(isLunarLike(dest)), [dest]);
-  useEffect(() => () => texture.dispose(), [texture]);
+  const rego = useMemo(() => regolithSet(dest === "moon" ? "moon" : dest === "mercury" ? "mercury" : "mars"), [dest]);
   const geometry = useMemo(() => {
     const R = radiusOf(dest), inner = 280, outer = 60000, rings = 70, seg = 220;
     const rand = seeded(77);
@@ -124,7 +123,7 @@ function HorizonRing() {
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <mesh geometry={geometry} receiveShadow>
-      <meshStandardMaterial vertexColors map={texture.color} bumpMap={texture.bump} bumpScale={0.04} roughness={1} polygonOffset polygonOffsetFactor={2} polygonOffsetUnits={2} />
+      <meshStandardMaterial vertexColors map={rego.map} bumpMap={rego.bumpMap} bumpScale={1.4} roughness={1} polygonOffset polygonOffsetFactor={2} polygonOffsetUnits={2} />
     </mesh>
   );
 }
@@ -277,134 +276,210 @@ function useBaseLogo() {
 function useStateSafe<T>(initial: T) {
   return useState<T>(initial);
 }
+/** Geodesic glass dome: tinted panes + a real strut frame (edges of a subdivided icosahedron). */
+function GeodesicDome({ r, detail = 3 }: { r: number; detail?: number }) {
+  const { glass, frame } = useMemo(() => {
+    const ico = new THREE.IcosahedronGeometry(r, detail);
+    // Keep only the upper hemisphere.
+    const pos = ico.attributes.position, keep: number[] = [];
+    for (let i = 0; i < pos.count; i += 3) {
+      const y = Math.min(pos.getY(i), pos.getY(i + 1), pos.getY(i + 2));
+      if (y > -0.02 * r) for (let k = 0; k < 3; k++) keep.push(pos.getX(i + k), pos.getY(i + k), pos.getZ(i + k));
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(keep, 3));
+    g.computeVertexNormals();
+    const e = new THREE.EdgesGeometry(g, 1);
+    ico.dispose();
+    return { glass: g, frame: e };
+  }, [r, detail]);
+  useEffect(() => () => { glass.dispose(); frame.dispose(); }, [glass, frame]);
+  return (
+    <group>
+      <mesh geometry={glass} castShadow>
+        <meshPhysicalMaterial color="#7f98a6" roughness={0.06} metalness={0.15} transmission={0.35} transparent opacity={0.55} envMapIntensity={1.6} clearcoat={1} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <lineSegments geometry={frame}>
+        <lineBasicMaterial color="#d9dbd8" />
+      </lineSegments>
+    </group>
+  );
+}
 /**
- * Analog-research-station style outpost (white modules): central drum with a
- * geodesic glass dome, an arched ribbed greenhouse, small segmented domes,
- * rectangular lab/hab modules with rooftop solar, pressurised corridors and
- * large inflatable domes in the distance.
+ * Analog research station (Mars-500 / C-Space style). Layout follows the aerial
+ * reference: a glass geodesic hub with four pressurised corridors in a cross,
+ * lab/hab modules with rooftop arrays, segmented domes, an arched greenhouse,
+ * a red-ringed EVA airlock, a pressurised rover and outer inflatable domes.
+ * All hull surfaces use weathered panel textures (seams, rivets, grime, dust).
  */
 function MarsBaseComplex({ cx, cz, ground }: { cx: number; cz: number; ground: string }) {
   const logo = useBaseLogo();
   const y = (x: number, z: number) => terrainHeight(cx + x, cz + z);
-  const white = <meshStandardMaterial color="#f1f0eb" roughness={0.6} metalness={0.05} />;
-  const glass = <meshPhysicalMaterial color="#9fb6c4" roughness={0.08} metalness={0.2} transparent opacity={0.38} depthWrite={false} side={THREE.DoubleSide} />;
-  const win = <meshStandardMaterial color="#26343d" roughness={0.15} metalness={0.6} emissive="#ffcf8a" emissiveIntensity={0.12} />;
-  const solar = <meshStandardMaterial color="#1a2748" roughness={0.3} metalness={0.5} />;
-  const SmallDome = ({ x, z, r }: { x: number; z: number; r: number }) => (
-    <group position={[cx + x, y(x, z), cz + z]}>
-      <mesh position={[0, 0.8, 0]} castShadow receiveShadow><cylinderGeometry args={[r, r, 1.6, 40]} />{white}</mesh>
-      <mesh position={[0, 1.6, 0]} castShadow><sphereGeometry args={[r, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />{white}</mesh>
-      {[0.25, 0.5, 0.72].map((f) => (
-        <mesh key={f} position={[0, 1.6 + Math.sin(f * Math.PI / 2) * r, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[Math.cos(f * Math.PI / 2) * r + 0.01, 0.035, 6, 48]} />
-          <meshStandardMaterial color="#cfcec8" />
-        </mesh>
-      ))}
-      {Array.from({ length: 8 }, (_, k) => (
-        <mesh key={k} position={[Math.cos(k * Math.PI / 4) * r * 1.001, 0.8, Math.sin(k * Math.PI / 4) * r * 1.001]} rotation={[0, -k * Math.PI / 4 + Math.PI / 2, 0]}>
-          <planeGeometry args={[0.5, 0.9]} />{win}
-        </mesh>
-      ))}
-    </group>
-  );
-  const Module = ({ x, z, w, d, rot = 0 }: { x: number; z: number; w: number; d: number; rot?: number }) => (
+  const hull = useMemo(() => panelSet({ base: "#eeede7", grid: [6, 3], dust: 0.55, vents: true, grime: 0.6, repeat: [2, 1], seed: 11 }), []);
+  const ribbed = useMemo(() => panelSet({ base: "#f1f0ea", grid: [12, 1], dust: 0.45, rivets: false, grime: 0.4, repeat: [2, 1], seed: 5 }), []);
+  const domeSkin = useMemo(() => panelSet({ base: "#ecebe5", grid: [16, 4], dust: 0.5, rivets: false, grime: 0.5, seed: 9 }), []);
+  const metal = useMemo(() => metalSet("#8f9497"), []);
+  const H = (props: { color?: string }) => <meshStandardMaterial {...hull} color={props.color ?? "#ffffff"} roughness={1} metalness={0.05} bumpScale={0.6} />;
+  const win = <meshStandardMaterial color="#1f2d36" roughness={0.08} metalness={0.7} emissive="#ffcf8a" emissiveIntensity={0.1} envMapIntensity={1.5} />;
+  const solar = <meshStandardMaterial {...useMemo(() => panelSet({ base: "#16244a", grid: [8, 4], dust: 0.15, rivets: false, grime: 0.1, roughness: 0.25, seed: 2 }), [])} color="#ffffff" metalness={0.5} roughness={1} />;
+  /** Rectangular module: panelled hull, roof array, windows, door, roof railing, footings. */
+  const Module = ({ x, z, w, d, h = 2.8, rot = 0 }: { x: number; z: number; w: number; d: number; h?: number; rot?: number }) => (
     <group position={[cx + x, y(x, z), cz + z]} rotation={[0, rot, 0]}>
-      <mesh position={[0, 1.3, 0]} castShadow receiveShadow><boxGeometry args={[w, 2.6, d]} />{white}</mesh>
-      <mesh position={[0, 2.62, 0]}><boxGeometry args={[w + 0.15, 0.06, d + 0.15]} /><meshStandardMaterial color="#d9d8d1" /></mesh>
-      {Array.from({ length: Math.floor(w / 1.6) }, (_, k) => (
-        <mesh key={k} position={[-w / 2 + 0.9 + k * 1.6, 2.75, 0]} rotation={[-0.25, 0, 0]}><boxGeometry args={[1.3, 0.05, d * 0.7]} />{solar}</mesh>
+      <mesh position={[0, h / 2 + 0.25, 0]} castShadow receiveShadow><boxGeometry args={[w, h, d]} /><H /></mesh>
+      <mesh position={[0, h + 0.27, 0]}><boxGeometry args={[w + 0.12, 0.08, d + 0.12]} /><meshStandardMaterial {...metal} color="#d8d8d2" metalness={0.5} roughness={1} /></mesh>
+      {Array.from({ length: Math.max(1, Math.floor(w / 1.7)) }, (_, k, ) => (
+        <group key={k} position={[-w / 2 + 1 + k * 1.7, h + 0.55, 0]} rotation={[-0.3, 0, 0]}>
+          <mesh castShadow><boxGeometry args={[1.45, 0.05, d * 0.72]} />{solar}</mesh>
+          <mesh position={[0, -0.18, 0]}><boxGeometry args={[0.06, 0.35, 0.06]} /><meshStandardMaterial color="#8a8e90" metalness={0.7} /></mesh>
+        </group>
       ))}
-      {Array.from({ length: Math.floor(w / 2) }, (_, k) => (
-        <mesh key={`w${k}`} position={[-w / 2 + 1 + k * 2, 1.5, d / 2 + 0.01]}><planeGeometry args={[0.9, 0.6]} />{win}</mesh>
+      {Array.from({ length: Math.max(1, Math.floor(w / 2.2)) }, (_, k) => (
+        <group key={`w${k}`} position={[-w / 2 + 1.2 + k * 2.2, h * 0.62, d / 2 + 0.01]}>
+          <mesh><planeGeometry args={[1.0, 0.55]} />{win}</mesh>
+          <mesh position={[0, 0, -0.005]}><planeGeometry args={[1.12, 0.67]} /><meshStandardMaterial color="#b9b8b0" /></mesh>
+        </group>
+      ))}
+      {/* Footings so the module sits on the regolith */}
+      {[-1, 1].flatMap((sx) => [-1, 1].map((sz) => (
+        <mesh key={`${sx}${sz}`} position={[sx * (w / 2 - 0.3), 0.12, sz * (d / 2 - 0.3)]}><boxGeometry args={[0.45, 0.3, 0.45]} /><meshStandardMaterial {...metal} color="#7d8183" metalness={0.6} roughness={1} /></mesh>
+      )))}
+      {/* Roof hand-rail */}
+      {[-1, 1].map((sz) => (
+        <mesh key={sz} position={[0, h + 0.6, sz * (d / 2 - 0.05)]}><boxGeometry args={[w, 0.04, 0.04]} /><meshStandardMaterial color="#cfcfc9" metalness={0.6} /></mesh>
       ))}
     </group>
   );
-  const Corridor = ({ a, b }: { a: [number, number]; b: [number, number] }) => {
-    const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
-    const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+  /** Pressurised corridor: rounded tube with ribs, sitting on saddles. */
+  const Corridor = ({ a, b, r = 0.95 }: { a: [number, number]; b: [number, number]; r?: number }) => {
+    const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz), mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
     return (
-      <mesh position={[cx + mx, y(mx, mz) + 1.1, cz + mz]} rotation={[0, -Math.atan2(dz, dx), 0]} castShadow>
-        <boxGeometry args={[len, 2.2, 1.9]} />{white}
-      </mesh>
-    );
-  };
-  // Arched greenhouse (Quonset-style) with ribs and window strips.
-  const gx = 0, gz = 10, gL = 11, gR = 3.2;
-  return (
-    <group>
-      {/* Foundation pad */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, y(0, 0) + 0.02, cz]} receiveShadow>
-        <circleGeometry args={[24, 64]} />
-        <meshStandardMaterial color={ground} roughness={1} />
-      </mesh>
-      {/* Central hub: drum + geodesic glass dome */}
-      <group position={[cx, y(0, 0), cz]}>
-        <mesh position={[0, 1.6, 0]} castShadow receiveShadow><cylinderGeometry args={[5.6, 5.8, 3.2, 64]} />{white}</mesh>
-        <mesh position={[0, 2.2, 0]}><cylinderGeometry args={[5.62, 5.62, 0.5, 64, 1, true]} />{win}</mesh>
-        <mesh position={[0, 3.25, 0]}><cylinderGeometry args={[5.75, 5.75, 0.12, 64]} /><meshStandardMaterial color="#d8d7d0" /></mesh>
-        <mesh position={[0, 3.3, 0]}><sphereGeometry args={[5.2, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2]} />{glass}</mesh>
-        <mesh position={[0, 3.3, 0]}><icosahedronGeometry args={[5.22, 3]} /><meshStandardMaterial color="#c9ccc8" wireframe metalness={0.6} roughness={0.4} /></mesh>
-        <mesh position={[0, 4.4, 0]}><cylinderGeometry args={[2.2, 2.2, 2.2, 32]} /><meshStandardMaterial color="#5f7d4e" roughness={0.9} /></mesh>
-        <pointLight position={[0, 5, 0]} intensity={60} distance={18} color="#ffe2b8" />
-        {/* Emblem on the drum */}
-        <mesh position={[0, 1.4, 5.83]}><circleGeometry args={[0.9, 48]} /><meshStandardMaterial map={logo} transparent roughness={0.5} /></mesh>
-      </group>
-      {/* Greenhouse */}
-      <group position={[cx + gx, y(gx, gz), cz + gz]}>
-        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[gR, gR, gL, 48, 1, true, -Math.PI / 2, Math.PI]} />
-          <meshStandardMaterial color="#f1f0eb" roughness={0.6} side={THREE.DoubleSide} />
-        </mesh>
-        {Array.from({ length: 8 }, (_, k) => (
-          <mesh key={k} position={[0, 0, -gL / 2 + 0.6 + k * (gL - 1.2) / 7]}>
-            <torusGeometry args={[gR + 0.06, 0.09, 8, 40, Math.PI]} />
-            <meshStandardMaterial color="#e2e1da" roughness={0.5} />
+      <group position={[cx + mx, y(mx, mz) + r + 0.35, cz + mz]} rotation={[0, -Math.atan2(dz, dx), 0]}>
+        <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow><cylinderGeometry args={[r, r, len, 32]} /><meshStandardMaterial {...ribbed} color="#ffffff" roughness={1} bumpScale={0.6} /></mesh>
+        {Array.from({ length: Math.max(2, Math.round(len / 1.4)) }, (_, k, ) => (
+          <mesh key={k} position={[-len / 2 + 0.5 + k * ((len - 1) / Math.max(1, Math.round(len / 1.4) - 1)), 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <torusGeometry args={[r + 0.02, 0.05, 8, 32]} /><meshStandardMaterial color="#d3d2cb" roughness={0.6} />
           </mesh>
         ))}
-        {[-1, 1].map((side) => Array.from({ length: 7 }, (_, k) => (
-          <mesh key={`${side}${k}`} position={[side * gR * 0.72, gR * 0.7, -gL / 2 + 1.3 + k * (gL - 2.6) / 6]} rotation={[0, side * Math.PI / 2, side * -0.75]}>
-            <planeGeometry args={[1.1, 1.6]} />
-            <meshStandardMaterial color="#9fb4bd" roughness={0.1} metalness={0.4} transparent opacity={0.8} />
+        {[-len / 3, len / 3].map((sx) => (
+          <mesh key={sx} position={[sx, -r - 0.2, 0]}><boxGeometry args={[0.35, 0.45, r * 1.6]} /><meshStandardMaterial {...metal} color="#7d8183" metalness={0.6} roughness={1} /></mesh>
+        ))}
+      </group>
+    );
+  };
+  /** Segmented dome module (soft-shell over a short drum, with collar rings and portholes). */
+  const SegDome = ({ x, z, r }: { x: number; z: number; r: number }) => (
+    <group position={[cx + x, y(x, z), cz + z]}>
+      <mesh position={[0, 0.85, 0]} castShadow receiveShadow><cylinderGeometry args={[r, r * 1.02, 1.7, 48]} /><meshStandardMaterial {...domeSkin} color="#ffffff" roughness={1} bumpScale={0.5} /></mesh>
+      <mesh position={[0, 1.7, 0]} castShadow><sphereGeometry args={[r, 48, 20, 0, Math.PI * 2, 0, Math.PI / 2]} /><meshStandardMaterial {...domeSkin} color="#ffffff" roughness={1} bumpScale={0.5} /></mesh>
+      {[0.18, 0.4, 0.62, 0.82].map((f) => (
+        <mesh key={f} position={[0, 1.7 + Math.sin(f * Math.PI / 2) * r, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[Math.cos(f * Math.PI / 2) * r + 0.015, 0.04, 6, 64]} /><meshStandardMaterial color="#cdccc5" roughness={0.6} />
+        </mesh>
+      ))}
+      {Array.from({ length: 10 }, (_, k) => (
+        <mesh key={k} position={[Math.cos(k * 0.628) * (r + 0.01), 1.0, Math.sin(k * 0.628) * (r + 0.01)]} rotation={[0, -k * 0.628 + Math.PI / 2, 0]}>
+          <circleGeometry args={[0.22, 24]} />{win}
+        </mesh>
+      ))}
+      <mesh position={[0, 1.7 + r * 0.98, 0]}><cylinderGeometry args={[r * 0.28, r * 0.28, 0.12, 24]} /><meshStandardMaterial color="#c8c7c0" /></mesh>
+    </group>
+  );
+  // Arched greenhouse parameters.
+  const gx = -1, gz = 12.5, gL = 11, gR = 3.2;
+  return (
+    <group>
+      {/* Graded foundation pad and compacted tracks */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, y(0, 0) + 0.02, cz]} receiveShadow>
+        <circleGeometry args={[27, 64]} />
+        <meshStandardMaterial color={ground} roughness={1} transparent opacity={0.35} depthWrite={false} />
+      </mesh>
+      {/* Central hub: panelled drum, window band, glass geodesic dome */}
+      <group position={[cx, y(0, 0), cz]}>
+        <mesh position={[0, 1.7, 0]} castShadow receiveShadow><cylinderGeometry args={[5.8, 6.0, 3.4, 64]} /><meshStandardMaterial {...hull} color="#ffffff" roughness={1} bumpScale={0.6} /></mesh>
+        <mesh position={[0, 2.3, 0]}><cylinderGeometry args={[5.83, 5.83, 0.55, 64, 1, true]} />{win}</mesh>
+        <mesh position={[0, 3.45, 0]}><cylinderGeometry args={[5.95, 5.95, 0.16, 64]} /><meshStandardMaterial {...metal} color="#d6d5cf" metalness={0.4} roughness={1} /></mesh>
+        <group position={[0, 3.5, 0]}><GeodesicDome r={5.4} /></group>
+        {/* Interior: hydroponics trays and warm light visible through the glass */}
+        <mesh position={[0, 3.9, 0]}><cylinderGeometry args={[3.2, 3.2, 0.5, 32]} /><meshStandardMaterial color="#4f7a3e" roughness={0.9} /></mesh>
+        <pointLight position={[0, 5.5, 0]} intensity={70} distance={20} color="#ffe2b8" />
+        <mesh position={[0, 1.5, 6.03]}><circleGeometry args={[0.95, 48]} /><meshStandardMaterial map={logo} transparent roughness={0.5} /></mesh>
+      </group>
+      {/* Cross of corridors to the wings */}
+      <Corridor a={[5.6, 0]} b={[10, 0]} />
+      <Corridor a={[-5.6, 0]} b={[-10, 0]} />
+      <Corridor a={[0, -5.6]} b={[0, -10]} />
+      <Corridor a={[0, 5.6]} b={[0, 7.4]} />
+      <Corridor a={[13.5, 3]} b={[13.5, 9]} r={0.8} />
+      <Corridor a={[-13.5, -3]} b={[-13.5, -9.5]} r={0.8} />
+      {/* Wing modules */}
+      <Module x={14} z={0} w={8} d={4.2} />
+      <Module x={-14} z={0} w={8} d={4.2} />
+      <Module x={0} z={-14} w={4.4} d={7.5} />
+      <Module x={8} z={-11} w={4.5} d={3.4} h={2.4} />
+      <Module x={-7.5} z={10.5} w={4} d={3.2} h={2.4} rot={0.05} />
+      {/* Segmented domes at the corridor ends */}
+      <SegDome x={13.5} z={12} r={3.1} />
+      <SegDome x={-13.5} z={-12.5} r={2.6} />
+      {/* Arched greenhouse with ribs and window strips */}
+      <group position={[cx + gx, y(gx, gz), cz + gz]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[gR, gR, gL, 64, 1, true, -Math.PI / 2, Math.PI]} />
+          <meshStandardMaterial {...ribbed} color="#ffffff" roughness={1} side={THREE.DoubleSide} bumpScale={0.6} />
+        </mesh>
+        {Array.from({ length: 9 }, (_, k) => (
+          <mesh key={k} position={[0, 0, -gL / 2 + 0.3 + k * (gL - 0.6) / 8]}>
+            <torusGeometry args={[gR + 0.07, 0.11, 10, 48, Math.PI]} /><meshStandardMaterial color="#e3e2db" roughness={0.55} />
+          </mesh>
+        ))}
+        {[-1, 1].map((side) => Array.from({ length: 8 }, (_, k) => (
+          <mesh key={`${side}${k}`} position={[side * gR * 0.74, gR * 0.67, -gL / 2 + 0.95 + k * (gL - 1.9) / 7]} rotation={[0, side * Math.PI / 2, side * -0.78]}>
+            <planeGeometry args={[1.05, 1.7]} />{win}
           </mesh>
         )))}
         {[-1, 1].map((end) => (
           <mesh key={end} position={[0, 0, end * gL / 2]} rotation={[0, end > 0 ? 0 : Math.PI, 0]}>
-            <circleGeometry args={[gR, 48, 0, Math.PI]} />{white}
+            <circleGeometry args={[gR, 48, 0, Math.PI]} /><H />
           </mesh>
         ))}
-        <mesh position={[0, 1.6, gL / 2 + 0.02]}><circleGeometry args={[0.8, 48]} /><meshStandardMaterial map={logo} transparent roughness={0.5} /></mesh>
-        <mesh position={[1.4, 0.9, gL / 2 + 0.02]}><planeGeometry args={[0.9, 1.8]} />{win}</mesh>
+        <mesh position={[0, 1.7, -gL / 2 - 0.02]} rotation={[0, Math.PI, 0]}><circleGeometry args={[0.8, 48]} /><meshStandardMaterial map={logo} transparent roughness={0.5} /></mesh>
       </group>
-      {/* Small segmented domes */}
-      <SmallDome x={-11} z={4} r={3} />
-      <SmallDome x={-9} z={-9} r={2.6} />
-      <SmallDome x={10} z={-9} r={2.4} />
-      {/* Rectangular modules with rooftop solar */}
-      <Module x={10} z={1} w={7} d={3.4} />
-      <Module x={-2} z={-11} w={6.5} d={3.2} />
-      <Module x={10} z={11} w={6} d={3.2} rot={0.1} />
-      <Module x={-11} z={13} w={5} d={3} rot={-0.2} />
-      {/* Pressurised corridors */}
-      <Corridor a={[5.5, 0.5]} b={[6.6, 1]} />
-      <Corridor a={[-5.4, 1.5]} b={[-8.2, 3.2]} />
-      <Corridor a={[-3.5, -4]} b={[-7.5, -7.3]} />
-      <Corridor a={[0, -5.6]} b={[-1, -9.5]} />
-      <Corridor a={[4.5, -3.3]} b={[8.2, -7.6]} />
-      {/* Lamp posts */}
-      {[[16, 6], [-16, 0], [4, 20], [-6, -18]].map(([x, z], k) => (
+      {/* EVA airlock with red-white hatch ring (as in the reference) */}
+      <group position={[cx + 18.6, y(18.6, 0), cz]}>
+        <mesh position={[0, 1.4, 0]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[1.25, 1.25, 1.6, 40]} /><H /></mesh>
+        <mesh position={[0.82, 1.4, 0]} rotation={[0, Math.PI / 2, 0]}><torusGeometry args={[0.85, 0.14, 12, 40]} /><meshStandardMaterial color="#c8202a" roughness={0.45} /></mesh>
+        <mesh position={[0.83, 1.4, 0]} rotation={[0, Math.PI / 2, 0]}><circleGeometry args={[0.72, 40]} /><meshStandardMaterial {...metal} color="#cfd1cf" metalness={0.7} roughness={1} /></mesh>
+        <mesh position={[0.9, 1.4, 0]} rotation={[0, Math.PI / 2, 0]}><torusGeometry args={[0.3, 0.04, 8, 24]} /><meshStandardMaterial color="#3b3f42" metalness={0.8} /></mesh>
+        <mesh position={[1.7, 0.4, 0]} rotation={[0, 0, -0.32]}><boxGeometry args={[1.9, 0.08, 1.1]} /><meshStandardMaterial {...metal} color="#9a9ea0" metalness={0.7} roughness={1} /></mesh>
+      </group>
+      {/* Pressurised rover parked at the airlock */}
+      <group position={[cx + 21, y(21, 5), cz + 5]} rotation={[0, -0.4, 0]}>
+        <mesh position={[0, 1.15, 0]} castShadow><boxGeometry args={[3.6, 1.5, 2.0]} /><H /></mesh>
+        <mesh position={[1.8, 1.3, 0]}><boxGeometry args={[0.05, 0.7, 1.7]} />{win}</mesh>
+        {[-1.2, 0, 1.2].flatMap((x) => [-1, 1].map((sz) => (
+          <mesh key={`${x}${sz}`} position={[x, 0.45, sz * 1.05]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.45, 0.45, 0.35, 24]} /><meshStandardMaterial color="#2e2e2c" roughness={0.9} /></mesh>
+        )))}
+      </group>
+      {/* Utility: water/oxygen tanks, cable trays on the ground, lamp posts, antenna */}
+      {[[9, 7], [10.4, 7]].map(([x, z], k) => (
+        <mesh key={`t${k}`} position={[cx + x, y(x, z) + 1.0, cz + z]} castShadow><cylinderGeometry args={[0.55, 0.55, 2.0, 24]} /><meshStandardMaterial {...metal} color="#d4d4cd" metalness={0.5} roughness={1} /></mesh>
+      ))}
+      {[[[6, 0], [6, 7]], [[-6, 0], [-6, 9]]].map(([a, b], k) => {
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        return <mesh key={`cab${k}`} position={[cx + (a[0] + b[0]) / 2, y(a[0], a[1]) + 0.06, cz + (a[1] + b[1]) / 2]} rotation={[0, -Math.atan2(b[1] - a[1], b[0] - a[0]), 0]}><boxGeometry args={[len, 0.1, 0.25]} /><meshStandardMaterial color="#3c3f41" /></mesh>;
+      })}
+      {[[22, -10], [-22, 6], [6, 24], [-6, -24], [22, 14], [-20, -16]].map(([x, z], k) => (
         <group key={k} position={[cx + x, y(x, z), cz + z]}>
-          <mesh position={[0, 1.6, 0]}><cylinderGeometry args={[0.05, 0.06, 3.2, 8]} /><meshStandardMaterial color="#d6d6d0" /></mesh>
-          <mesh position={[0, 3.25, 0]}><boxGeometry args={[0.3, 0.12, 0.3]} /><meshStandardMaterial color="#fff4dc" emissive="#fff0d0" emissiveIntensity={0.6} /></mesh>
+          <mesh position={[0, 1.8, 0]}><cylinderGeometry args={[0.05, 0.07, 3.6, 8]} /><meshStandardMaterial color="#d6d6d0" metalness={0.5} /></mesh>
+          <mesh position={[0, 3.65, 0]}><boxGeometry args={[0.32, 0.12, 0.32]} /><meshStandardMaterial color="#fff4dc" emissive="#fff0d0" emissiveIntensity={0.6} /></mesh>
         </group>
       ))}
-      {/* Large inflatable domes in the distance */}
+      {/* Outer inflatable domes */}
       {[[-46, -58, 10], [-22, -66, 7]].map(([x, z, r], k) => (
         <group key={`big${k}`} position={[cx + x, y(x, z), cz + z]} scale={[1, 0.58, 1]}>
-          <mesh castShadow><sphereGeometry args={[r, 48, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />{white}</mesh>
-          {Array.from({ length: 6 }, (_, j) => (
-            <mesh key={j} rotation={[0, (j / 6) * Math.PI, 0]}>
-              <torusGeometry args={[r * 1.002, 0.08, 6, 64, Math.PI]} />
-              <meshStandardMaterial color="#c9c8c1" />
+          <mesh castShadow><sphereGeometry args={[r, 64, 24, 0, Math.PI * 2, 0, Math.PI / 2]} /><meshStandardMaterial {...domeSkin} color="#ffffff" roughness={1} /></mesh>
+          {Array.from({ length: 8 }, (_, j) => (
+            <mesh key={j} rotation={[0, (j / 8) * Math.PI, 0]}>
+              <torusGeometry args={[r * 1.003, 0.1, 6, 64, Math.PI]} /><meshStandardMaterial color="#c9c8c1" />
             </mesh>
           ))}
         </group>
@@ -876,6 +951,28 @@ export default function World() {
   );
 }
 
+let rockGeo: THREE.BufferGeometry | null = null;
+/** Weathered boulder: subdivided sphere displaced by layered noise, flattened base, smooth normals. */
+function rockGeometry() {
+  if (rockGeo) return rockGeo;
+  const g = new THREE.IcosahedronGeometry(1, 4), p = g.attributes.position, v = new THREE.Vector3();
+  const h = (x: number, y: number, z: number) => Math.sin(x * 2.1 + y * 1.3) * Math.cos(z * 1.7 - x) * 0.5 + 0.5;
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    let d = 1 + 0.22 * (h(v.x, v.y, v.z) - 0.5) + 0.1 * (h(v.x * 3.1, v.y * 2.7, v.z * 3.3) - 0.5) + 0.04 * (h(v.x * 7, v.y * 6, v.z * 8) - 0.5);
+    // Faceted fracture planes like real basalt.
+    d -= Math.max(0, v.x * 0.6 + v.z * 0.3 - 0.55) * 0.5 + Math.max(0, -v.z * 0.7 + v.y * 0.2 - 0.6) * 0.4;
+    v.multiplyScalar(d);
+    if (v.y < -0.35) v.y = -0.35 + (v.y + 0.35) * 0.25;
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  rockGeo = g;
+  return g;
+}
+function rockMat() {
+  return panelSet({ base: "#8d7a6a", grid: [1, 1], dust: 0.4, rivets: false, grime: 1.4, roughness: 0.95, seed: 31 });
+}
 function Rocks() {
   const ref = useRef<THREE.InstancedMesh>(null);
   useEffect(() => {
@@ -902,8 +999,8 @@ function Rocks() {
       castShadow
       receiveShadow
     >
-      <icosahedronGeometry args={[1, 1]} />
-      <meshStandardMaterial color="#b8a797" roughness={0.97} flatShading />
+      <primitive object={rockGeometry()} attach="geometry" />
+      <meshStandardMaterial {...rockMat()} color="#c9b8a6" roughness={1} bumpScale={1.2} />
     </instancedMesh>
   );
 }

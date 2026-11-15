@@ -1,5 +1,6 @@
 import { useRef, useMemo, useEffect } from "react";
 import { hardwareTextures } from "./hardwareTextures";
+import { panelSet } from "./materials";
 import { useFrame } from "@react-three/fiber";
 import { Cylinder, Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -137,6 +138,7 @@ export function Rover({
     spotA = useRef<THREE.SpotLight>(null),
     spotB = useRef<THREE.SpotLight>(null),
     lightTarget = useMemo(() => new THREE.Object3D(), []);
+  const roverSkin = useMemo(() => panelSet({ base: "#e4e1d6", grid: [4, 2], dust: 0.7, vents: true, grime: 0.8, seed: 21 }), []);
   const scanning = () => {
     const d = engine.data;
     if (!moving || d.stage !== "surface") return 0;
@@ -200,8 +202,21 @@ export function Rover({
       <group position={[0, 1.08, 0.05]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[1.55, 0.5, 2.15]} />
-          <meshStandardMaterial color={white} roughness={0.55} metalness={0.15} />
+          <meshStandardMaterial {...roverSkin} color="#ffffff" roughness={1} metalness={0.15} bumpScale={0.5} />
         </mesh>
+        {/* Cable harnesses and small instrument boxes along the deck edge */}
+        {[-0.6, -0.2, 0.25, 0.7].map((z, k) => (
+          <mesh key={k} position={[0.62 - (k % 2) * 1.24, 0.3, z]}>
+            <boxGeometry args={[0.18, 0.12, 0.22]} />
+            <meshStandardMaterial color={k % 2 ? "#c9a24a" : "#3a3f42"} metalness={0.7} roughness={0.4} />
+          </mesh>
+        ))}
+        {[-1, 1].map((sx) => (
+          <mesh key={sx} position={[sx * 0.79, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.018, 0.018, 1.9, 6]} />
+            <meshStandardMaterial color="#b88a3a" metalness={0.6} roughness={0.5} />
+          </mesh>
+        ))}
         <mesh position={[0, 0.27, 0]}>
           <boxGeometry args={[1.62, 0.04, 2.22]} />
           <meshStandardMaterial color="#c8c6be" roughness={0.6} metalness={0.3} />

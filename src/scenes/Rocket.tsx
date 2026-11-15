@@ -41,6 +41,37 @@ function skinTexture(base: string, accent: string) {
   t.anisotropy = 8;
   return t;
 }
+/** SRB casing: white with black roll-pattern blocks near the forward and aft ends, segment joints. */
+function boosterTexture() {
+  const el = document.createElement('canvas');
+  el.width = 512; el.height = 1024;
+  const g = el.getContext('2d')!;
+  g.fillStyle = '#efefea'; g.fillRect(0, 0, 512, 1024);
+  for (let y = 0; y < 1024; y += 170) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, y, 512, 4); }
+  g.fillStyle = '#16181a';
+  for (const y0 of [60, 900]) for (let k = 0; k < 4; k++) g.fillRect(k * 128 + (y0 > 500 ? 64 : 0), y0, 64, 40);
+  for (let k = 0; k < 3000; k++) { g.fillStyle = Math.random() > 0.5 ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; g.fillRect(Math.random() * 512, Math.random() * 1024, 2, 3); }
+  const t = new THREE.CanvasTexture(el);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
+/** Sprayed-on foam insulation: orange-brown with vertical mottling and darker stringer streaks. */
+function foamTexture(base: string) {
+  const el = document.createElement('canvas');
+  el.width = 512; el.height = 1024;
+  const g = el.getContext('2d')!;
+  g.fillStyle = base; g.fillRect(0, 0, 512, 1024);
+  for (let k = 0; k < 9000; k++) { const v = Math.random(); g.fillStyle = v > 0.5 ? `rgba(255,190,120,${0.05 + v * 0.05})` : `rgba(90,40,10,${0.05 + v * 0.06})`; g.fillRect(Math.random() * 512, Math.random() * 1024, 3 + Math.random() * 5, 2 + Math.random() * 4); }
+  for (let x = 0; x < 512; x += 32) { g.fillStyle = 'rgba(80,35,10,0.12)'; g.fillRect(x, 0, 3, 1024); }
+  for (let y = 0; y < 1024; y += 256) { g.fillStyle = 'rgba(60,25,8,0.25)'; g.fillRect(0, y, 512, 5); }
+  const t = new THREE.CanvasTexture(el);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
 function Lathe({ points, segments = 48, phiStart = 0, phiLength = Math.PI * 2, children }: { points: THREE.Vector2[]; segments?: number; phiStart?: number; phiLength?: number; children: React.ReactNode }) {
   const geo = useMemo(() => new THREE.LatheGeometry(points, segments, phiStart, phiLength), [points, segments, phiStart, phiLength]);
   useEffect(() => () => geo.dispose(), [geo]);
@@ -70,9 +101,9 @@ function Engine({ scale = 1, active = true }: { scale?: number; active?: boolean
 export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0, upperSeparation = 0, id = 'titan', throttle = 1 }: { firing?: boolean; fairingOpen?: number; separation?: number; upperSeparation?: number; id?: LauncherId; throttle?: number }) {
   void firing; void throttle;
   const r = launchers[id], { nose, body } = rocketLayout(id), radius = r.diameter / 2, bay = r.fairingDiameter / 2, joint = rocketLayout(id).joint;
-  const skin = useMemo(() => skinTexture(r.coreColor, '#2b2f33'), [r.coreColor]);
+  const skin = useMemo(() => (id === 'titan' ? foamTexture(r.coreColor) : skinTexture(r.coreColor, '#2b2f33')), [id, r.coreColor]);
   const upperSkin = useMemo(() => skinTexture(r.upperColor, '#2b2f33'), [r.upperColor]);
-  const boosterSkin = useMemo(() => skinTexture('#f1f1ec', '#1c1f22'), []);
+  const boosterSkin = useMemo(() => boosterTexture(), []);
   useEffect(() => () => { skin.dispose(); upperSkin.dispose(); boosterSkin.dispose(); }, [skin, upperSkin, boosterSkin]);
   const fairing = useMemo(() => fairingProfile(bay, r.fairingHeight, nose), [bay, r.fairingHeight, nose]);
     const aftSkirt = useMemo(() => [new THREE.Vector2(radius * 1.08, 0), new THREE.Vector2(radius * 1.0, radius * 0.5)], [radius]);
@@ -123,8 +154,37 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
     <group position={[0, body - 0.8, 0]}>
       <Lathe points={adapter}><meshStandardMaterial color="#c6c8c3" metalness={0.5} roughness={0.45} side={THREE.DoubleSide} /></Lathe>
     </group>
+    {/* SLS: Orion crew module + service module fairing, topped by the launch abort tower. */}
+    {id === 'titan' && fairingOpen < 0.05 && (
+      <group position={[0, body, 0]}>
+        <mesh position={[0, r.fairingHeight * 0.32, 0]} castShadow>
+          <cylinderGeometry args={[bay * 0.92, bay, r.fairingHeight * 0.64, 48]} />
+          <meshStandardMaterial map={upperSkin} color="#ffffff" roughness={0.5} />
+        </mesh>
+        <group position={[0, r.fairingHeight * 0.64, 0]}>
+          <Lathe points={[new THREE.Vector2(bay * 0.92, 0), new THREE.Vector2(bay * 0.36, r.fairingHeight * 0.42), new THREE.Vector2(bay * 0.2, r.fairingHeight * 0.48)]} segments={48}>
+            <meshStandardMaterial color="#f2f2ee" roughness={0.45} />
+          </Lathe>
+          {/* Abort motor tower */}
+          <mesh position={[0, r.fairingHeight * 0.48 + nose * 0.45, 0]} castShadow>
+            <cylinderGeometry args={[bay * 0.13, bay * 0.2, nose * 0.9, 24]} />
+            <meshStandardMaterial color="#efefea" roughness={0.5} />
+          </mesh>
+          {[0, 1, 2, 3].map((k) => (
+            <mesh key={k} position={[Math.cos(k * Math.PI / 2) * bay * 0.2, r.fairingHeight * 0.48 + nose * 0.18, Math.sin(k * Math.PI / 2) * bay * 0.2]} rotation={[Math.sin(k * Math.PI / 2) * 0.6, 0, -Math.cos(k * Math.PI / 2) * 0.6]}>
+              <cylinderGeometry args={[bay * 0.05, bay * 0.07, nose * 0.12, 12]} />
+              <meshStandardMaterial color="#2a2c2e" metalness={0.6} />
+            </mesh>
+          ))}
+          <mesh position={[0, r.fairingHeight * 0.48 + nose * 0.95, 0]}>
+            <coneGeometry args={[bay * 0.13, nose * 0.18, 24]} />
+            <meshStandardMaterial color="#d8d8d2" roughness={0.5} />
+          </mesh>
+        </group>
+      </group>
+    )}
     {/* Two-piece ogive payload fairing; halves hinge away at jettison */}
-    {[0, 1].map((i) => (
+    {(id !== 'titan' || fairingOpen >= 0.05) && [0, 1].map((i) => (
       <group key={i} position={[(i ? 1 : -1) * fairingOpen * 9, body, 0]} rotation={[0, 0, (i ? -1 : 1) * fairingOpen * .65]}>
         <Lathe points={fairing} segments={32} phiStart={i * Math.PI + Math.PI / 2} phiLength={Math.PI}>
           <meshStandardMaterial color="#f1f1ec" metalness={0.12} roughness={0.5} side={THREE.DoubleSide} />
