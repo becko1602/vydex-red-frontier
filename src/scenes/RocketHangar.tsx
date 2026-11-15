@@ -32,16 +32,16 @@ function blueprintTexture(id: LauncherId) {
   g.lineTo(cx + bay, yBody - 10); g.lineTo(cx + rad, yBody); g.lineTo(cx + rad, base); g.closePath(); g.stroke();
   // Stage joints and tanks (dashed internal lines).
   g.setLineDash([10, 8]); g.lineWidth = 1.5;
-  const joint = base - body * 0.64 * px;
+  const joint = base - rocketLayout(id).joint * px;
   for (const y of [joint, base - body * 0.3 * px, base - body * 0.85 * px]) { g.beginPath(); g.moveTo(cx - rad, y); g.lineTo(cx + rad, y); g.stroke(); }
   g.beginPath(); g.ellipse(cx, base - body * 0.18 * px, rad * 0.8, body * 0.1 * px, 0, 0, Math.PI * 2); g.stroke();
   g.beginPath(); g.ellipse(cx, base - body * 0.47 * px, rad * 0.8, body * 0.14 * px, 0, 0, Math.PI * 2); g.stroke();
   g.setLineDash([]);
   // Engines.
-  for (const k of r.id === 'scout' ? [0] : [-0.5, 0.5]) { g.beginPath(); g.moveTo(cx + k * rad - 10, base); g.lineTo(cx + k * rad - 22, base + 34); g.lineTo(cx + k * rad + 22, base + 34); g.lineTo(cx + k * rad + 10, base); g.stroke(); }
+  for (const k of r.engines === 2 ? [-0.3, 0.3] : [-0.6, -0.2, 0.2, 0.6]) { g.beginPath(); g.moveTo(cx + k * rad - 10, base); g.lineTo(cx + k * rad - 22, base + 34); g.lineTo(cx + k * rad + 22, base + 34); g.lineTo(cx + k * rad + 10, base); g.stroke(); }
   // Boosters.
   if (r.boosters) for (const s of [-1, 1]) {
-    const bx = cx + s * (rad * 1.65), br = rad * 0.42, top = base - body * 0.64 * 0.86 * px;
+    const bx = cx + s * (rad * 1.65), br = rad * 0.42, top = base - r.boosterLength * px;
     g.beginPath(); g.moveTo(bx - br, base); g.lineTo(bx - br, top); g.lineTo(bx, top - br * 2); g.lineTo(bx + br, top); g.lineTo(bx + br, base); g.stroke();
   }
   // Dimension lines.
@@ -67,7 +67,7 @@ function blueprintTexture(id: LauncherId) {
   const pcx = 1000, pcy = 300;
   g.lineWidth = 2; g.beginPath(); g.arc(pcx, pcy, rad * 2.2, 0, Math.PI * 2); g.stroke();
   g.setLineDash([6, 6]); g.beginPath(); g.arc(pcx, pcy, bay * 2.2, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
-  for (const [dx, dy] of (r.id === 'scout' ? [[0, 0]] : [[-1, -1], [1, -1], [-1, 1], [1, 1]])) { g.beginPath(); g.arc(pcx + dx * rad * 0.9, pcy + dy * rad * 0.9, rad * 0.45, 0, Math.PI * 2); g.stroke(); }
+  for (const [dx, dy] of (r.engines === 2 ? [[-0.6, 0], [0.6, 0]] : [[-1, -1], [1, -1], [-1, 1], [1, 1]])) { g.beginPath(); g.arc(pcx + dx * rad * 0.9, pcy + dy * rad * 0.9, rad * 0.45, 0, Math.PI * 2); g.stroke(); }
   if (r.boosters) for (const s of [-1, 1]) { g.beginPath(); g.arc(pcx + s * rad * 2.2 * 1.65, pcy, rad * 0.95, 0, Math.PI * 2); g.stroke(); }
   g.font = '600 22px monospace'; g.textAlign = 'center'; g.fillText('SECTION A–A · ENGINE LAYOUT', pcx, pcy + bay * 2.2 + 50);
   // Specification table.
@@ -329,7 +329,8 @@ export default function RocketHangar() {
   const id = useGame((s) => s.data.design.launcher ?? 'titan'), { camera } = useThree(), h = rocketLayout(id).height;
   const radius = (launchers[id].diameter / 2) * ROCKET_VISUAL_SCALE;
   useEffect(() => {
-    camera.position.set(15, h * 0.55, 21);
+    const k = Math.max(1, h / 13);
+    camera.position.set(15 * k, h * 0.55, 21 * k);
     camera.lookAt(0, h * 0.5, 0);
   }, [camera, id, h]);
   return (
@@ -342,7 +343,7 @@ export default function RocketHangar() {
       <HighBay height={h} id={id} />
       <WorkPlatforms height={h} radius={radius} />
       <LaunchVehicle id={id} />
-      <OrbitControls makeDefault target={[0, h * 0.5, 0]} enablePan={false} enableDamping dampingFactor={0.08} rotateSpeed={0.65} minDistance={h * 0.6} maxDistance={48} minPolarAngle={0.08} maxPolarAngle={Math.PI * 0.6} onStart={() => useGame.getState().setTutorial({ action: 'rocket-rotate' })} />
+      <OrbitControls makeDefault target={[0, h * 0.5, 0]} enablePan={false} enableDamping dampingFactor={0.08} rotateSpeed={0.65} minDistance={h * 0.6} maxDistance={70} minPolarAngle={0.08} maxPolarAngle={Math.PI * 0.6} onStart={() => useGame.getState().setTutorial({ action: 'rocket-rotate' })} />
     </>
   );
 }

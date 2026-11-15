@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Stars } from "@react-three/drei";
 import * as THREE from "three";
@@ -242,6 +242,176 @@ function SunLighting() {
   );
 }
 /** NASA-style surface outpost: habitat, solar farm, DSN relay dish, charging pad and spare-parts depot. */
+/** Mission emblem texture. A real logo can be supplied as /assets/base-logo.png (only with the owner's permission). */
+function useBaseLogo() {
+  const fallback = useMemo(() => {
+    const el = document.createElement("canvas");
+    el.width = el.height = 256;
+    const g = el.getContext("2d")!;
+    g.fillStyle = "#0b2a5a";
+    g.beginPath(); g.arc(128, 128, 122, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#ffffff"; g.lineWidth = 6;
+    g.beginPath(); g.arc(128, 128, 112, 0, Math.PI * 2); g.stroke();
+    const grad = g.createRadialGradient(100, 110, 6, 128, 128, 60);
+    grad.addColorStop(0, "#f2a070"); grad.addColorStop(1, "#a8452a");
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(128, 128, 56, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#ffd58a"; g.lineWidth = 5;
+    g.beginPath(); g.ellipse(128, 128, 98, 30, -0.4, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = "#ffffff"; g.font = "bold 34px system-ui, sans-serif"; g.textAlign = "center";
+    g.fillText("VYDEX", 128, 58);
+    g.font = "bold 20px system-ui, sans-serif"; g.fillText("SURFACE BASE 1", 128, 214);
+    for (let k = 0; k < 14; k++) { g.fillStyle = "#ffffff"; g.fillRect(40 + ((k * 53) % 180), 70 + ((k * 37) % 120), 2, 2); }
+    const t = new THREE.CanvasTexture(el);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+  const [tex, setTex] = useStateSafe<THREE.Texture>(fallback);
+  useEffect(() => {
+    let alive = true;
+    new THREE.TextureLoader().load("/assets/base-logo.png", (t) => { t.colorSpace = THREE.SRGBColorSpace; if (alive) setTex(t); }, undefined, () => {});
+    return () => { alive = false; };
+  }, [setTex]);
+  return tex;
+}
+function useStateSafe<T>(initial: T) {
+  return useState<T>(initial);
+}
+/**
+ * Analog-research-station style outpost (white modules): central drum with a
+ * geodesic glass dome, an arched ribbed greenhouse, small segmented domes,
+ * rectangular lab/hab modules with rooftop solar, pressurised corridors and
+ * large inflatable domes in the distance.
+ */
+function MarsBaseComplex({ cx, cz, ground }: { cx: number; cz: number; ground: string }) {
+  const logo = useBaseLogo();
+  const y = (x: number, z: number) => terrainHeight(cx + x, cz + z);
+  const white = <meshStandardMaterial color="#f1f0eb" roughness={0.6} metalness={0.05} />;
+  const glass = <meshPhysicalMaterial color="#9fb6c4" roughness={0.08} metalness={0.2} transparent opacity={0.38} depthWrite={false} side={THREE.DoubleSide} />;
+  const win = <meshStandardMaterial color="#26343d" roughness={0.15} metalness={0.6} emissive="#ffcf8a" emissiveIntensity={0.12} />;
+  const solar = <meshStandardMaterial color="#1a2748" roughness={0.3} metalness={0.5} />;
+  const SmallDome = ({ x, z, r }: { x: number; z: number; r: number }) => (
+    <group position={[cx + x, y(x, z), cz + z]}>
+      <mesh position={[0, 0.8, 0]} castShadow receiveShadow><cylinderGeometry args={[r, r, 1.6, 40]} />{white}</mesh>
+      <mesh position={[0, 1.6, 0]} castShadow><sphereGeometry args={[r, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />{white}</mesh>
+      {[0.25, 0.5, 0.72].map((f) => (
+        <mesh key={f} position={[0, 1.6 + Math.sin(f * Math.PI / 2) * r, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[Math.cos(f * Math.PI / 2) * r + 0.01, 0.035, 6, 48]} />
+          <meshStandardMaterial color="#cfcec8" />
+        </mesh>
+      ))}
+      {Array.from({ length: 8 }, (_, k) => (
+        <mesh key={k} position={[Math.cos(k * Math.PI / 4) * r * 1.001, 0.8, Math.sin(k * Math.PI / 4) * r * 1.001]} rotation={[0, -k * Math.PI / 4 + Math.PI / 2, 0]}>
+          <planeGeometry args={[0.5, 0.9]} />{win}
+        </mesh>
+      ))}
+    </group>
+  );
+  const Module = ({ x, z, w, d, rot = 0 }: { x: number; z: number; w: number; d: number; rot?: number }) => (
+    <group position={[cx + x, y(x, z), cz + z]} rotation={[0, rot, 0]}>
+      <mesh position={[0, 1.3, 0]} castShadow receiveShadow><boxGeometry args={[w, 2.6, d]} />{white}</mesh>
+      <mesh position={[0, 2.62, 0]}><boxGeometry args={[w + 0.15, 0.06, d + 0.15]} /><meshStandardMaterial color="#d9d8d1" /></mesh>
+      {Array.from({ length: Math.floor(w / 1.6) }, (_, k) => (
+        <mesh key={k} position={[-w / 2 + 0.9 + k * 1.6, 2.75, 0]} rotation={[-0.25, 0, 0]}><boxGeometry args={[1.3, 0.05, d * 0.7]} />{solar}</mesh>
+      ))}
+      {Array.from({ length: Math.floor(w / 2) }, (_, k) => (
+        <mesh key={`w${k}`} position={[-w / 2 + 1 + k * 2, 1.5, d / 2 + 0.01]}><planeGeometry args={[0.9, 0.6]} />{win}</mesh>
+      ))}
+    </group>
+  );
+  const Corridor = ({ a, b }: { a: [number, number]; b: [number, number] }) => {
+    const dx = b[0] - a[0], dz = b[1] - a[1], len = Math.hypot(dx, dz);
+    const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+    return (
+      <mesh position={[cx + mx, y(mx, mz) + 1.1, cz + mz]} rotation={[0, -Math.atan2(dz, dx), 0]} castShadow>
+        <boxGeometry args={[len, 2.2, 1.9]} />{white}
+      </mesh>
+    );
+  };
+  // Arched greenhouse (Quonset-style) with ribs and window strips.
+  const gx = 0, gz = 10, gL = 11, gR = 3.2;
+  return (
+    <group>
+      {/* Foundation pad */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, y(0, 0) + 0.02, cz]} receiveShadow>
+        <circleGeometry args={[24, 64]} />
+        <meshStandardMaterial color={ground} roughness={1} />
+      </mesh>
+      {/* Central hub: drum + geodesic glass dome */}
+      <group position={[cx, y(0, 0), cz]}>
+        <mesh position={[0, 1.6, 0]} castShadow receiveShadow><cylinderGeometry args={[5.6, 5.8, 3.2, 64]} />{white}</mesh>
+        <mesh position={[0, 2.2, 0]}><cylinderGeometry args={[5.62, 5.62, 0.5, 64, 1, true]} />{win}</mesh>
+        <mesh position={[0, 3.25, 0]}><cylinderGeometry args={[5.75, 5.75, 0.12, 64]} /><meshStandardMaterial color="#d8d7d0" /></mesh>
+        <mesh position={[0, 3.3, 0]}><sphereGeometry args={[5.2, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2]} />{glass}</mesh>
+        <mesh position={[0, 3.3, 0]}><icosahedronGeometry args={[5.22, 3]} /><meshStandardMaterial color="#c9ccc8" wireframe metalness={0.6} roughness={0.4} /></mesh>
+        <mesh position={[0, 4.4, 0]}><cylinderGeometry args={[2.2, 2.2, 2.2, 32]} /><meshStandardMaterial color="#5f7d4e" roughness={0.9} /></mesh>
+        <pointLight position={[0, 5, 0]} intensity={60} distance={18} color="#ffe2b8" />
+        {/* Emblem on the drum */}
+        <mesh position={[0, 1.4, 5.83]}><circleGeometry args={[0.9, 48]} /><meshStandardMaterial map={logo} transparent roughness={0.5} /></mesh>
+      </group>
+      {/* Greenhouse */}
+      <group position={[cx + gx, y(gx, gz), cz + gz]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[gR, gR, gL, 48, 1, true, -Math.PI / 2, Math.PI]} />
+          <meshStandardMaterial color="#f1f0eb" roughness={0.6} side={THREE.DoubleSide} />
+        </mesh>
+        {Array.from({ length: 8 }, (_, k) => (
+          <mesh key={k} position={[0, 0, -gL / 2 + 0.6 + k * (gL - 1.2) / 7]}>
+            <torusGeometry args={[gR + 0.06, 0.09, 8, 40, Math.PI]} />
+            <meshStandardMaterial color="#e2e1da" roughness={0.5} />
+          </mesh>
+        ))}
+        {[-1, 1].map((side) => Array.from({ length: 7 }, (_, k) => (
+          <mesh key={`${side}${k}`} position={[side * gR * 0.72, gR * 0.7, -gL / 2 + 1.3 + k * (gL - 2.6) / 6]} rotation={[0, side * Math.PI / 2, side * -0.75]}>
+            <planeGeometry args={[1.1, 1.6]} />
+            <meshStandardMaterial color="#9fb4bd" roughness={0.1} metalness={0.4} transparent opacity={0.8} />
+          </mesh>
+        )))}
+        {[-1, 1].map((end) => (
+          <mesh key={end} position={[0, 0, end * gL / 2]} rotation={[0, end > 0 ? 0 : Math.PI, 0]}>
+            <circleGeometry args={[gR, 48, 0, Math.PI]} />{white}
+          </mesh>
+        ))}
+        <mesh position={[0, 1.6, gL / 2 + 0.02]}><circleGeometry args={[0.8, 48]} /><meshStandardMaterial map={logo} transparent roughness={0.5} /></mesh>
+        <mesh position={[1.4, 0.9, gL / 2 + 0.02]}><planeGeometry args={[0.9, 1.8]} />{win}</mesh>
+      </group>
+      {/* Small segmented domes */}
+      <SmallDome x={-11} z={4} r={3} />
+      <SmallDome x={-9} z={-9} r={2.6} />
+      <SmallDome x={10} z={-9} r={2.4} />
+      {/* Rectangular modules with rooftop solar */}
+      <Module x={10} z={1} w={7} d={3.4} />
+      <Module x={-2} z={-11} w={6.5} d={3.2} />
+      <Module x={10} z={11} w={6} d={3.2} rot={0.1} />
+      <Module x={-11} z={13} w={5} d={3} rot={-0.2} />
+      {/* Pressurised corridors */}
+      <Corridor a={[5.5, 0.5]} b={[6.6, 1]} />
+      <Corridor a={[-5.4, 1.5]} b={[-8.2, 3.2]} />
+      <Corridor a={[-3.5, -4]} b={[-7.5, -7.3]} />
+      <Corridor a={[0, -5.6]} b={[-1, -9.5]} />
+      <Corridor a={[4.5, -3.3]} b={[8.2, -7.6]} />
+      {/* Lamp posts */}
+      {[[16, 6], [-16, 0], [4, 20], [-6, -18]].map(([x, z], k) => (
+        <group key={k} position={[cx + x, y(x, z), cz + z]}>
+          <mesh position={[0, 1.6, 0]}><cylinderGeometry args={[0.05, 0.06, 3.2, 8]} /><meshStandardMaterial color="#d6d6d0" /></mesh>
+          <mesh position={[0, 3.25, 0]}><boxGeometry args={[0.3, 0.12, 0.3]} /><meshStandardMaterial color="#fff4dc" emissive="#fff0d0" emissiveIntensity={0.6} /></mesh>
+        </group>
+      ))}
+      {/* Large inflatable domes in the distance */}
+      {[[-46, -58, 10], [-22, -66, 7]].map(([x, z, r], k) => (
+        <group key={`big${k}`} position={[cx + x, y(x, z), cz + z]} scale={[1, 0.58, 1]}>
+          <mesh castShadow><sphereGeometry args={[r, 48, 20, 0, Math.PI * 2, 0, Math.PI / 2]} />{white}</mesh>
+          {Array.from({ length: 6 }, (_, j) => (
+            <mesh key={j} rotation={[0, (j / 6) * Math.PI, 0]}>
+              <torusGeometry args={[r * 1.002, 0.08, 6, 64, Math.PI]} />
+              <meshStandardMaterial color="#c9c8c1" />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
 function SolarTower({ position }: { position: [number, number, number] }) {
   const head = useRef<THREE.Group>(null);
   useFrame(() => {
@@ -296,76 +466,7 @@ function SurfaceBase() {
   const white = "#ecebe5";
   return (
     <group>
-      {/* Habitat: geodesic glass dome over a pressurised core, joined to a horizontal module with a docking hatch */}
-      <group position={[bx - 9, y(-9, -5), bz - 5]} rotation={[0, 0.5, 0]}>
-        <mesh position={[0, 0, 0]} receiveShadow>
-          <cylinderGeometry args={[7.4, 7.8, 0.6, 48]} />
-          <meshStandardMaterial color={dest === "mars" ? "#8a6a55" : "#8d8d8f"} roughness={0.95} />
-        </mesh>
-        <mesh position={[0, 0.3, 0]}>
-          <sphereGeometry args={[7, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshPhysicalMaterial color="#cfe3ef" transparent opacity={0.22} roughness={0.05} metalness={0.1} transmission={0.6} depthWrite={false} side={THREE.DoubleSide} />
-        </mesh>
-        <mesh position={[0, 0.3, 0]} scale={[1, 1, 1]}>
-          <icosahedronGeometry args={[7.02, 3]} />
-          <meshBasicMaterial color="#e9eef1" wireframe transparent opacity={0.45} />
-        </mesh>
-        {/* Interior: core module, lab racks, warm lighting */}
-        <mesh position={[0, 2.2, 0]} castShadow>
-          <cylinderGeometry args={[2.6, 2.8, 3.8, 32]} />
-          <meshStandardMaterial color="#e7e6df" roughness={0.6} />
-        </mesh>
-        <mesh position={[0, 4.2, 0]}>
-          <sphereGeometry args={[2.6, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color="#dcdbd3" roughness={0.6} />
-        </mesh>
-        {[-1, 1].map((k) => (
-          <mesh key={k} position={[k * 4.3, 1.4, 1.5]} castShadow>
-            <boxGeometry args={[1.6, 2.2, 2.4]} />
-            <meshStandardMaterial color="#c9c8c0" roughness={0.7} />
-          </mesh>
-        ))}
-        <pointLight position={[0, 3, 0]} intensity={40} distance={14} color="#ffd9a8" />
-        {/* Horizontal pressurised module + round docking hatch */}
-        <group position={[10.5, 2.6, 0]}>
-          <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
-            <cylinderGeometry args={[2.4, 2.4, 9, 40]} />
-            <meshStandardMaterial color="#ecebe6" roughness={0.55} metalness={0.1} />
-          </mesh>
-          {Array.from({ length: 5 }, (_, i) => (
-            <mesh key={i} position={[-3.6 + i * 1.8, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <torusGeometry args={[2.42, 0.06, 6, 40]} />
-              <meshStandardMaterial color="#b8b7b0" roughness={0.5} />
-            </mesh>
-          ))}
-          <mesh position={[4.55, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-            <cylinderGeometry args={[2.4, 2.4, 0.15, 40]} />
-            <meshStandardMaterial color="#d7d6cf" roughness={0.5} />
-          </mesh>
-          <mesh position={[4.66, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-            <circleGeometry args={[1.1, 40]} />
-            <meshStandardMaterial color="#1f2a33" metalness={0.6} roughness={0.3} />
-          </mesh>
-          <mesh position={[4.68, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-            <ringGeometry args={[1.1, 1.3, 40]} />
-            <meshStandardMaterial color="#5b6066" metalness={0.7} roughness={0.4} />
-          </mesh>
-          <mesh position={[0, 0.4, 2.42]}>
-            <planeGeometry args={[1.8, 0.7]} />
-            <meshStandardMaterial color="#2a3b47" emissive="#ffcf8a" emissiveIntensity={0.35} />
-          </mesh>
-          {[-3, 3].map((x) => (
-            <mesh key={x} position={[x, -2.3, 0]}>
-              <boxGeometry args={[0.5, 0.9, 3.6]} />
-              <meshStandardMaterial color="#8d9092" metalness={0.6} roughness={0.4} />
-            </mesh>
-          ))}
-        </group>
-      </group>
-      {/* Vertical sun-tracking solar arrays on masts (tall panels for low Sun angles) */}
-      {[[-24, -10], [-20, -18], [-30, -14], [-14, -20]].map(([dx, dz], i) => (
-        <SolarTower key={i} position={[bx + dx, y(dx, dz), bz + dz]} />
-      ))}
+      <MarsBaseComplex cx={bx - 17} cz={bz - 9} ground={dest === "mars" ? "#a0705a" : "#8d8d8f"} />
       {/* Landing pad around the touchdown point: sintered surface, yellow ring, edge lights */}
       <group position={[0, terrainHeight(0, 0) + 0.03, 0]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -535,23 +636,64 @@ function EntryView() {
       <directionalLight position={[-80, 40, 60]} intensity={1.5} color="#fff4e6" />
       <Stars radius={600} depth={200} count={3500} factor={4} saturation={0.1} fade speed={0} />
       <Planet kind={dest === "mercury" ? "mercury" : dest === "moon" ? "moon" : "mars"} radius={R} spin />
-      <group ref={capsule}>
-        <group rotation={[Math.PI / 2, 0, 0]} scale={0.6}>
-          <mesh position={[0, 0.25, 0]}>
-            <coneGeometry args={[1.0, 0.9, 40, 1, true]} />
-            <meshStandardMaterial color="#e8e6df" metalness={0.3} roughness={0.5} side={THREE.DoubleSide} />
-          </mesh>
-          <mesh position={[0, -0.25, 0]} rotation={[Math.PI, 0, 0]}>
-            <coneGeometry args={[1.12, 0.35, 40]} />
-            <meshStandardMaterial color="#3a2b20" roughness={0.9} />
-          </mesh>
-          <mesh ref={plasma} position={[0, -0.7, 0]} rotation={[Math.PI, 0, 0]}>
-            <coneGeometry args={[1.5, 3.2, 32, 1, true]} />
-            <meshBasicMaterial color="#ff9a4a" transparent opacity={0.55} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
+      {dest === "moon" && (
+        <group position={[-260, 120, -380]}>
+          <Planet kind="earth" radius={11} spin />
         </group>
+      )}
+      <group ref={capsule}>
+        <EntryCapsule plasma={plasma} airless={airless} />
       </group>
     </>
+  );
+}
+/**
+ * MSL/Perseverance-style aeroshell: 70° sphere-cone heat shield (PICA, dark
+ * brown) on the front, a conical backshell with a parachute canister on the
+ * back. Built along +Z so lookAt() points the heat shield at the planet.
+ */
+function EntryCapsule({ plasma, airless }: { plasma: React.RefObject<THREE.Mesh | null>; airless: boolean }) {
+  const R = 1.1;
+  const shield = useMemo(() => {
+    const pts: THREE.Vector2[] = [];
+    // Blunt spherical nose cap then a shallow 70° cone out to the shoulder.
+    for (let i = 0; i <= 8; i++) {
+      const a = (i / 8) * 0.35;
+      pts.push(new THREE.Vector2(Math.sin(a) * R * 0.75, 0.32 - (1 - Math.cos(a)) * R * 0.75));
+    }
+    pts.push(new THREE.Vector2(R, 0.04), new THREE.Vector2(R * 1.02, 0), new THREE.Vector2(R * 0.98, -0.04));
+    return new THREE.LatheGeometry(pts, 64);
+  }, []);
+  const back = useMemo(() => new THREE.LatheGeometry([
+    new THREE.Vector2(R * 0.98, 0), new THREE.Vector2(R * 0.62, -0.95), new THREE.Vector2(R * 0.42, -1.05),
+    new THREE.Vector2(R * 0.34, -1.25), new THREE.Vector2(R * 0.3, -1.45), new THREE.Vector2(0.001, -1.47),
+  ], 64), []);
+  useEffect(() => () => { shield.dispose(); back.dispose(); }, [shield, back]);
+  return (
+    <group rotation={[Math.PI / 2, 0, 0]} scale={0.6}>
+      <mesh geometry={shield}>
+        <meshStandardMaterial color="#3a2a1e" roughness={0.92} metalness={0.05} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh geometry={back}>
+        <meshStandardMaterial color="#e9e7e0" roughness={0.55} metalness={0.2} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Backshell RCS thruster pods and cruise-stage interface ring */}
+      {[0, 1, 2, 3].map((k) => (
+        <mesh key={k} position={[Math.cos(k * Math.PI / 2) * R * 0.78, -0.45, Math.sin(k * Math.PI / 2) * R * 0.78]}>
+          <boxGeometry args={[0.12, 0.18, 0.12]} />
+          <meshStandardMaterial color="#8d918f" metalness={0.7} roughness={0.4} />
+        </mesh>
+      ))}
+      <mesh position={[0, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[R * 0.99, 0.035, 8, 64]} />
+        <meshStandardMaterial color="#b4b6b1" metalness={0.7} roughness={0.35} />
+      </mesh>
+      {/* Shock-layer plasma hugging the heat shield (atmospheric entry only) */}
+      <mesh ref={plasma} position={[0, 0.42, 0]} visible={!airless}>
+        <sphereGeometry args={[R * 1.25, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2.6]} />
+        <meshBasicMaterial color="#ffb070" transparent opacity={0.45} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
   );
 }
 function MarsTargets() {
@@ -682,8 +824,9 @@ export default function World() {
       <SurfaceSky />
       <SunLighting />
       {destination === "moon" && (
-        <group position={[2600, 1900, -6200]}>
-          <Planet kind="earth" radius={120} spin={false} />
+        // Earth hangs fixed in the lunar sky: ~1.9° across (true size), ~22° up, ahead of the start heading.
+        <group position={[1400, 2700, -6600]}>
+          <Planet kind="earth" radius={120} spin />
         </group>
       )}
       <Terrain />
@@ -699,7 +842,8 @@ export default function World() {
         <>
           <group ref={lander}>
             <group position={[0, 0.6, 0]}>
-              <Spacecraft design={design} separated />
+              {/* Solar wings stay folded through entry and powered descent; they open after touchdown. */}
+              <Spacecraft design={design} separated solarDeployed={false} />
             </group>
             <LanderFlame />
           </group>

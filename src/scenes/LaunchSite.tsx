@@ -341,13 +341,13 @@ export function LaunchClouds({ active, rocket, altitudeM }: { active: () => bool
     const t = clock.getElapsedTime(), on = active(), h = altitudeM.current;
     // Spawn trench billows while the vehicle is low.
     if (on && h < 1200) {
-      const rate = Math.ceil(dt * 70);
+      const rate = Math.ceil(dt * 110);
       for (let k = 0; k < rate; k++) {
         const p = parts[cursor.current++ % N];
         p.born = t;
         p.side = Math.random() > 0.5 ? 1 : -1;
-        p.dir.set(p.side * (0.8 + Math.random() * 0.4), 0.12 + Math.random() * 0.25, (Math.random() - 0.5) * 0.7).normalize();
-        p.speed = 14 + Math.random() * 16;
+        p.dir.set(p.side * (0.8 + Math.random() * 0.4), 0.18 + Math.random() * 0.4, (Math.random() - 0.5) * 0.9).normalize();
+        p.speed = 18 + Math.random() * 22;
         p.size = 1.6 + Math.random() * 2.2;
       }
     }
@@ -368,7 +368,7 @@ export function LaunchClouds({ active, rocket, altitudeM }: { active: () => bool
         } else {
           const travel = p.speed * (1 - Math.exp(-age * 0.55)) * 2.4;
           dummy.position.set(p.dir.x * travel, 1 + p.dir.y * travel + age * 1.4, p.dir.z * travel);
-          dummy.scale.setScalar(Math.min(26, p.size * (1 + age * 0.45)));
+          dummy.scale.setScalar(Math.min(38, p.size * (1.4 + age * 0.6)));
         }
         dummy.quaternion.copy(camera.quaternion);
         dummy.updateMatrix();
@@ -401,7 +401,7 @@ export function LaunchClouds({ active, rocket, altitudeM }: { active: () => bool
     <>
       <instancedMesh ref={ground} args={[undefined, undefined, N]} frustumCulled={false}>
         <planeGeometry args={[1, 1]} />
-        <meshLambertMaterial map={tex} transparent depthWrite={false} opacity={0.85} color="#f2efe9" />
+        <meshLambertMaterial map={tex} transparent depthWrite={false} opacity={0.95} color="#ffffff" emissive="#4a3a2a" />
       </instancedMesh>
       <instancedMesh ref={trail} args={[undefined, undefined, TRAIL]} frustumCulled={false}>
         <planeGeometry args={[1, 1]} />

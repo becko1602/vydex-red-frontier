@@ -10,14 +10,14 @@ const white = "#e7e5dd",
   dark = "#24282b",
   alu = "#b9bcbb";
 /** Rover-wide transient presentation state written by the UI (video recording). */
-export const roverFx = { recording: false };
+export const roverFx = { recording: false, armUntil: 0 };
 function Wheel({ ghost = false }: { ghost?: boolean }) {
   // Machined aluminium wheel, 0.42 m radius, 0.36 m wide, chevron grousers, titanium spokes.
   return (
     <group rotation={[0, 0, Math.PI / 2]}>
       <mesh castShadow>
         <cylinderGeometry args={[0.42, 0.42, 0.36, 36, 1, true]} />
-        <meshStandardMaterial color="#a9a8a3" metalness={0.75} roughness={0.45} side={THREE.DoubleSide} transparent={ghost} opacity={ghost ? 0.3 : 1} />
+        <meshStandardMaterial color="#4a4946" metalness={0.6} roughness={0.55} side={THREE.DoubleSide} transparent={ghost} opacity={ghost ? 0.3 : 1} />
       </mesh>
       {Array.from({ length: 24 }, (_, i) => {
         const a = (i / 24) * Math.PI * 2;
@@ -26,7 +26,7 @@ function Wheel({ ghost = false }: { ghost?: boolean }) {
             {[-1, 1].map((k) => (
               <mesh key={k} position={[0.425, k * 0.085, 0]} rotation={[k * 0.5, 0, 0]}>
                 <boxGeometry args={[0.025, 0.19, 0.028]} />
-                <meshStandardMaterial color="#8d8c87" metalness={0.8} roughness={0.5} />
+                <meshStandardMaterial color="#2c2c2a" metalness={0.5} roughness={0.7} />
               </mesh>
             ))}
           </group>
@@ -35,13 +35,13 @@ function Wheel({ ghost = false }: { ghost?: boolean }) {
       {[-1, 1].map((k) => (
         <mesh key={k} position={[0, k * 0.17, 0]}>
           <cylinderGeometry args={[0.4, 0.4, 0.015, 36]} />
-          <meshStandardMaterial color="#c2c1bb" metalness={0.8} roughness={0.35} />
+          <meshStandardMaterial color="#5a5955" metalness={0.7} roughness={0.45} />
         </mesh>
       ))}
       {Array.from({ length: 6 }, (_, i) => (
-        <mesh key={`s${i}`} position={[0, 0.17, 0]} rotation={[0, (i / 6) * Math.PI * 2, 0]}>
-          <boxGeometry args={[0.72, 0.02, 0.035]} />
-          <meshStandardMaterial color="#d4d3cd" metalness={0.85} roughness={0.3} />
+        <mesh key={`s${i}`} position={[0, 0.17, 0]} rotation={[Math.PI / 2, 0, (i / 6) * Math.PI * 2]}>
+          <torusGeometry args={[0.2, 0.014, 6, 16, Math.PI * 0.9]} />
+          <meshStandardMaterial color="#c9a95a" metalness={0.9} roughness={0.3} />
         </mesh>
       ))}
       <mesh position={[0, 0.2, 0]}>
@@ -106,6 +106,7 @@ function ScanBeams({ active, color = "#4dffd2" }: { active: () => number; color?
     </group>
   );
 }
+engine.armFx = () => { roverFx.armUntil = performance.now() + 7000; };
 export function Rover({
   design,
   speed = 0,
@@ -156,9 +157,11 @@ export function Rover({
       mastHead.current.rotation.x = THREE.MathUtils.damp(mastHead.current.rotation.x, inst ? -0.35 : -0.08, 3, step);
     }
     // Arm: stowed across the front; unfolds to the ground for drill / contact science.
-    const armOut = inst === "drill" || inst === "spectrometer" || inst === "sampler";
-    if (arm.current) arm.current.rotation.x = THREE.MathUtils.damp(arm.current.rotation.x, armOut ? -0.25 : 1.25, 2.2, step);
-    if (elbow.current) elbow.current.rotation.x = THREE.MathUtils.damp(elbow.current.rotation.x, armOut ? 1.35 : -2.4, 2.2, step);
+    // Arm: stowed folded across the front; for contact science it swings out ~1.5 m
+    // ahead of the rover and places the turret (drill / spectrometer / imager) on the ground.
+    const armOut = inst === "drill" || inst === "spectrometer" || inst === "sampler" || performance.now() < roverFx.armUntil;
+    if (arm.current) arm.current.rotation.x = THREE.MathUtils.damp(arm.current.rotation.x, armOut ? 1.35 : 0.35, 1.6, step);
+    if (elbow.current) elbow.current.rotation.x = THREE.MathUtils.damp(elbow.current.rotation.x, armOut ? -0.75 : 2.5, 1.6, step);
     if (turret.current) turret.current.rotation.z += armOut ? step * 0.4 * anim : 0;
     if (drillBit.current) {
       if (inst === "drill") drillBit.current.rotation.y += step * 18 * anim;
@@ -282,11 +285,15 @@ export function Rover({
           <meshStandardMaterial color={white} roughness={0.5} metalness={0.3} />
         </mesh>
         <group ref={mastHead} position={[0, 1.68, 0]}>
-          <mesh castShadow>
-            <boxGeometry args={[0.52, 0.24, 0.3]} />
-            <meshStandardMaterial color={white} roughness={0.45} metalness={0.3} />
+          <mesh castShadow position={[0, 0.06, 0.02]}>
+            <boxGeometry args={[0.46, 0.34, 0.42]} />
+            <meshStandardMaterial color="#d9d6cb" roughness={0.5} metalness={0.25} />
           </mesh>
-          <mesh position={[0, 0, -0.17]} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh position={[0, 0.07, -0.2]}>
+            <boxGeometry args={[0.4, 0.28, 0.02]} />
+            <meshStandardMaterial color="#b9b29e" roughness={0.6} metalness={0.4} />
+          </mesh>
+          <mesh position={[0, 0.1, -0.21]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.09, 0.09, 0.06, 24]} />
             <meshStandardMaterial color="#0a0c0e" metalness={0.95} roughness={0.08} />
           </mesh>
@@ -337,7 +344,7 @@ export function Rover({
               <cylinderGeometry args={[0.04, 0.045, 0.8, 12]} />
               <meshStandardMaterial color={white} metalness={0.3} roughness={0.5} />
             </mesh>
-            <group ref={turret} position={[0, -0.85, 0]}>
+            <group ref={turret} name="rover-turret" position={[0, -0.85, 0]}>
               <mesh>
                 <boxGeometry args={[0.22, 0.18, 0.22]} />
                 <meshStandardMaterial color="#5a5e60" metalness={0.7} roughness={0.4} />
@@ -363,12 +370,11 @@ export function Rover({
       {/* MER-style solar deck with fold-out wings */}
       {design.solar && (
         <group position={[0, 1.42, 0.08]}>
-          {[-1, 0, 1].map((k) => (
-            <mesh key={k} position={[k * 1.05, k ? -0.02 : 0, 0]} rotation={[0, 0, k * 0.05]} castShadow>
-              <boxGeometry args={[k ? 0.62 : 1.5, 0.035, k ? 1.7 : 2.1]} />
-              <SolarCellMaterial />
-            </mesh>
-          ))}
+          {/* Body-sized top deck array (no MER-style side wings), keeping a Curiosity/Perseverance silhouette */}
+          <mesh castShadow>
+            <boxGeometry args={[1.5, 0.035, 1.9]} />
+            <SolarCellMaterial />
+          </mesh>
         </group>
       )}
       {/* High-gain antenna (hexagonal flat-plate) + UHF helix */}

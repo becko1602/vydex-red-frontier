@@ -3,9 +3,11 @@ import { launchers, type LauncherId } from '../data/launchVehicles';
 import * as THREE from 'three';
 import { bellProfile } from './hardwareTextures';
 export const ROCKET_VISUAL_SCALE = 0.25;
+/** Booster placement angles around the core (radians). */
+export const boosterAngles = (n: number) => n === 2 ? [0, Math.PI] : n === 4 ? [Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75] : [];
 export function rocketLayout(id: LauncherId) {
   const r = launchers[id], nose = r.fairingDiameter * 0.85, body = r.height - nose - r.fairingHeight;
-  return { nose, body, payloadY: (body + r.fairingHeight / 2) * ROCKET_VISUAL_SCALE, height: r.height * ROCKET_VISUAL_SCALE };
+  return { nose, body, joint: body * (id === 'titan' ? 0.84 : 0.74), payloadY: (body + r.fairingHeight / 2) * ROCKET_VISUAL_SCALE, height: r.height * ROCKET_VISUAL_SCALE };
 }
 
 /** Tangent-ogive profile from the fairing shoulder (radius R at y=0) to the tip at y=L, on top of a cylinder of height h. */
@@ -67,16 +69,17 @@ function Engine({ scale = 1, active = true }: { scale?: number; active?: boolean
 // One model for cards, hangar and flight. All geometry in fictional design metres, then display scale 1:4.
 export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0, upperSeparation = 0, id = 'titan', throttle = 1 }: { firing?: boolean; fairingOpen?: number; separation?: number; upperSeparation?: number; id?: LauncherId; throttle?: number }) {
   void firing; void throttle;
-  const r = launchers[id], { nose, body } = rocketLayout(id), radius = r.diameter / 2, bay = r.fairingDiameter / 2, joint = body * 0.64;
-  const skin = useMemo(() => skinTexture(id === 'pioneer' ? '#ece6d4' : '#eceee9', r.color), [id, r.color]);
-  const upperSkin = useMemo(() => skinTexture('#e9ebe6', '#2b2f33'), []);
-  useEffect(() => () => { skin.dispose(); upperSkin.dispose(); }, [skin, upperSkin]);
+  const r = launchers[id], { nose, body } = rocketLayout(id), radius = r.diameter / 2, bay = r.fairingDiameter / 2, joint = rocketLayout(id).joint;
+  const skin = useMemo(() => skinTexture(r.coreColor, '#2b2f33'), [r.coreColor]);
+  const upperSkin = useMemo(() => skinTexture(r.upperColor, '#2b2f33'), [r.upperColor]);
+  const boosterSkin = useMemo(() => skinTexture('#f1f1ec', '#1c1f22'), []);
+  useEffect(() => () => { skin.dispose(); upperSkin.dispose(); boosterSkin.dispose(); }, [skin, upperSkin, boosterSkin]);
   const fairing = useMemo(() => fairingProfile(bay, r.fairingHeight, nose), [bay, r.fairingHeight, nose]);
-  const boosterNose = useMemo(() => ogive(radius * 0.42, radius * 1.4), [radius]);
-  const aftSkirt = useMemo(() => [new THREE.Vector2(radius * 1.08, 0), new THREE.Vector2(radius * 1.0, radius * 0.5)], [radius]);
+    const aftSkirt = useMemo(() => [new THREE.Vector2(radius * 1.08, 0), new THREE.Vector2(radius * 1.0, radius * 0.5)], [radius]);
   const adapter = useMemo(() => [new THREE.Vector2(radius, 0), new THREE.Vector2(bay, Math.max(0.6, (bay - radius) * 1.2))], [radius, bay]);
-  const coreEngines = id === 'scout' ? [[0, 0]] : [0, 1, 2, 3].map((i) => [Math.cos(i * Math.PI / 2 + Math.PI / 4) * radius * 0.5, Math.sin(i * Math.PI / 2 + Math.PI / 4) * radius * 0.5]);
-  const engineScale = id === 'scout' ? radius * 1.2 : radius * 0.62;
+  const coreEngines = r.engines === 2 ? [[-radius * 0.28, 0], [radius * 0.28, 0]] : [0, 1, 2, 3].map((i) => [Math.cos(i * Math.PI / 2 + Math.PI / 4) * radius * 0.5, Math.sin(i * Math.PI / 2 + Math.PI / 4) * radius * 0.5]);
+  const engineScale = r.engines === 2 ? radius * 0.62 : radius * 0.42;
+  const bLen = Math.max(4, r.boosterLength);
   const white = (map: THREE.Texture, repeat = 1) => <meshStandardMaterial map={map} color="#ffffff" metalness={0.15} roughness={0.55} map-repeat={[repeat, 1]} />;
   return <group scale={ROCKET_VISUAL_SCALE}>
     {/* First stage (core): falls away at staging */}
@@ -108,7 +111,6 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
         </mesh>
       ))}
       {/* Fins / aero strakes on small vehicles only */}
-      {id === 'scout' && [0, 1, 2, 3].map((i) => <group key={i} rotation={[0, i * Math.PI / 2, 0]}><mesh position={[radius * 1.25, 1.1, 0]}><boxGeometry args={[radius * 0.55, 2.2, 0.08]} /><meshStandardMaterial color="#2b2f33" metalness={0.4} roughness={0.5} /></mesh></group>)}
       {coreEngines.map(([x, z], i) => <group key={i} position={[x, -0.05, z]}><Engine scale={engineScale} active={upperSeparation < 0.05} /></group>)}
     </group>
     {/* Upper stage */}
@@ -133,34 +135,39 @@ export function LaunchVehicle({ firing = false, fairingOpen = 0, separation = 0,
         </mesh>
       </group>
     ))}
-    {/* Strap-on solid boosters with ogive noses, aft skirts and attach struts */}
-    {r.boosters > 0 && [-1, 1].map((side) => (
-      <group key={side} position={[side * (radius * 1.65 + separation * 18), -separation * 35, 0]} rotation={[0, 0, -side * separation * .25]}>
-        <mesh position={[0, joint * 0.43 + 0.3, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[radius * .42, radius * .42, joint * .86 - 0.6, 32]} />
-          {white(skin, 1)}
-        </mesh>
-        {[0.25, 0.5, 0.75].map((f) => (
-          <mesh key={f} position={[0, joint * 0.86 * f, 0]}>
-            <cylinderGeometry args={[radius * .43, radius * .43, 0.18, 32]} />
-            <meshStandardMaterial color="#9ea19c" metalness={0.5} roughness={0.5} />
-          </mesh>
-        ))}
-        <group position={[0, joint * .86, 0]}>
-          <Lathe points={boosterNose} segments={32}><meshStandardMaterial color="#eceee9" roughness={0.5} /></Lathe>
+    {/* Strap-on solid boosters: white segmented casings, ogive noses, aft skirts, attach struts */}
+    {boosterAngles(r.boosters).map((a) => {
+      const br = radius * (r.boosters === 4 ? 0.42 : 0.44), dist = radius + br * 1.08;
+      return (
+        <group key={a} rotation={[0, -a, 0]}>
+          <group position={[dist + separation * 18, -separation * 35, 0]} rotation={[0, 0, -separation * .25]}>
+            <mesh position={[0, bLen / 2 + 0.3, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[br, br, bLen - 0.6, 32]} />
+              <meshStandardMaterial map={boosterSkin} color="#ffffff" roughness={0.55} metalness={0.1} />
+            </mesh>
+            {Array.from({ length: Math.max(2, Math.round(bLen / 10)) }, (_, k) => (
+              <mesh key={k} position={[0, (bLen * (k + 1)) / (Math.max(2, Math.round(bLen / 10)) + 1), 0]}>
+                <cylinderGeometry args={[br * 1.02, br * 1.02, 0.35, 32]} />
+                <meshStandardMaterial color="#25292c" roughness={0.6} />
+              </mesh>
+            ))}
+            <group position={[0, bLen, 0]}>
+              <Lathe points={ogive(br, br * 3)} segments={32}><meshStandardMaterial color="#f1f1ec" roughness={0.5} /></Lathe>
+            </group>
+            <mesh position={[0, 0.3, 0]}>
+              <cylinderGeometry args={[br, br * 1.25, 0.9, 32, 1, true]} />
+              <meshStandardMaterial color="#2a2e31" metalness={0.5} roughness={0.55} side={THREE.DoubleSide} />
+            </mesh>
+            <group position={[0, -0.1, 0]}><Engine scale={br * 1.2} active={separation < .05} /></group>
+            {[bLen * 0.1, bLen * 0.85].map((y) => (
+              <mesh key={y} position={[-br * 1.04, y, 0]} rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.1, 0.1, br * 0.25, 8]} />
+                <meshStandardMaterial color="#8d908c" metalness={0.7} roughness={0.4} />
+              </mesh>
+            ))}
+          </group>
         </group>
-        <mesh position={[0, 0.3, 0]}>
-          <cylinderGeometry args={[radius * .42, radius * .55, 0.9, 32, 1, true]} />
-          <meshStandardMaterial color="#2a2e31" metalness={0.5} roughness={0.55} side={THREE.DoubleSide} />
-        </mesh>
-        <group position={[0, -0.1, 0]}><Engine scale={radius * 0.5} active={separation < .05} /></group>
-        {[joint * 0.15, joint * 0.8].map((y) => (
-          <mesh key={y} position={[-side * radius * 0.62, y, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.08, 0.08, radius * 0.5, 8]} />
-            <meshStandardMaterial color="#8d908c" metalness={0.7} roughness={0.4} />
-          </mesh>
-        ))}
-      </group>
-    ))}
+      );
+    })}
   </group>;
 }

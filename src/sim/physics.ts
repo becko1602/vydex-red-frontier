@@ -446,6 +446,7 @@ export function landerStep(
     x: number;
     z: number;
     assist: boolean;
+    descentRate?: number;
     yaw?:number;
     thrust?: number;
     legs?: boolean;
@@ -457,7 +458,9 @@ export function landerStep(
   const h = s.y - terrainHeight(s.x, s.z, destination),
     m = dry + s.fuel;
   const maximumThrust = control.thrust ?? 8000;
-  const desiredVy = -Math.min(18, Math.max(0.8, h * 0.38));
+  // Automatic glide slope, or the pilot's descent-rate setpoint (0 = hover), always slowing to ≤0.8 m/s near the ground.
+  const rate = control.descentRate ?? -1;
+  const desiredVy = rate < 0 ? -Math.min(18, Math.max(0.8, h * 0.38)) : -Math.min(rate, Math.max(rate === 0 ? 0 : 0.8, h * 0.38));
   const automatic =
     maximumThrust > 0
       ? ((env.gravity + (desiredVy - s.vy) * 1.1) * m) / (maximumThrust * Math.max(0.5, Math.cos(s.tilt)))

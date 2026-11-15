@@ -137,11 +137,11 @@ function Heliocentric({ dest }: { dest: DestinationId }) {
     for (const id of ["earth", destBody] as (HeliocentricBodyId | null)[]) {
       if (!id) continue;
       bodyPos(id, f, tmpBody);
-      const rOrbit = BODY_R[id] * 1.9;
+      const rOrbit = BODY_R[id] + 0.17; // clear of the globe even with the craft's ~0.12-unit wingspan
       const off = tmpOff.copy(v).sub(tmpBody);
       const dist = off.length();
-      if (dist < rOrbit * 1.6) {
-        const k = THREE.MathUtils.smoothstep(dist, rOrbit * 1.6, 0); // 0 far → 1 at the centre
+      if (dist < rOrbit * 2.2) {
+        const k = THREE.MathUtils.smoothstep(dist, rOrbit * 2.2, 0); // 0 far → 1 at the centre
         const a = data.stageTime * 0.9;
         const orbitDir = tmpDir.set(Math.cos(a), 0.35 * Math.sin(a * 0.7), Math.sin(a)).normalize();
         const outward = dist > 1e-4 ? off.normalize() : orbitDir;

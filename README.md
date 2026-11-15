@@ -23,13 +23,13 @@ Open the URL printed by Vite (normally http://localhost:5173 for development or 
 
 ## New launch-vehicle catalogue
 
-All vehicles, specifications and prices are **fictional educational game values**, never real hardware performance or prices.
+Vehicles are real NASA launchers (Atlas V 401, Atlas V 541, SLS Block 1) with public dimensions and thrust; credit costs and delivery capacities are **scaled game values**.
 
 | Provider | Cost (credits) | Earth / Moon / Mars / VY-26 capacity (kg) | Usable fairing (m) | Stage groups |
 | --- | ---: | --- | --- | ---: |
-| Vydex Scout | 4 | 520 / unsupported / unsupported / unsupported | Ø4.0 × 5.5 | 2 |
-| Vydex Pioneer | 7 | 950 / 800 / unsupported / 700 | Ø5.2 × 6.5 | 2 |
-| Vydex Titan | 10 | 1800 / 1400 / 1200 / 1400 | Ø6.0 × 8 | 3 |
+| Atlas V 401 | 4 | 520 / unsupported / unsupported / unsupported | Ø4.0 × 5.5 | 2 |
+| Atlas V 541 | 7 | 950 / 800 / unsupported / 700 | Ø5.2 × 6.5 | 2 |
+| SLS Block 1 | 10 | 1800 / 1400 / 1200 / 1400 | Ø6.0 × 8 | 3 |
 
 Titan has two serial stages and a paired booster stage group. The service includes provider fuel and destination injection. Provider mass/fuel never enters spacecraft mass or spacecraft tanks. Titan retains the old 10-credit / 1200 kg Mars service, so existing Mars starter designs and budget remain valid.
 

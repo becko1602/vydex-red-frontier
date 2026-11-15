@@ -121,6 +121,8 @@ export type FlightData = {
   /** Rover inside the surface base service radius. */
   docked: boolean;
   inspections: string[];
+  /** Pilot-selected descent-rate setpoint (m/s, positive down); -1 = automatic glide profile, 0 = hover. */
+  descentRate: number;
 };
 export type Input = {
   pitch?: number; yaw?: number; roll?: number; throttleChange?: number; rcsX?:number; rcsZ?:number;
@@ -197,6 +199,7 @@ export function freshData(
     headlights: "auto",
     docked: false,
     inspections: [],
+    descentRate: -1,
   };
 }
 /** Surface base position for rover missions, metres from the landing site. */
@@ -209,6 +212,8 @@ export function sunElevation(solTime: number) {
 }
 export class MissionEngine {
   data: FlightData = freshData();
+  /** Presentation hook: scenes set this to animate the robotic arm. */
+  armFx?: () => void;
   explain(message: string) {
     if (this.data.explanations[0] !== message)
       this.data.explanations = [message, ...this.data.explanations].slice(
@@ -751,6 +756,7 @@ export class MissionEngine {
           z: input.pitch ?? input.lateralZ,
           yaw: input.yaw,
           assist: d.assist,
+          descentRate: d.descentRate,
           thrust: d.engineEnabled && installed(d.design, "descentEngine") ? 8000 : 0,
           legs: installed(d.design, "legs"),
         },
@@ -997,6 +1003,7 @@ export class MissionEngine {
   inspect() {
     const d = this.data;
     if (d.stage !== "surface") return;
+    this.armFx?.();
     const r = d.rover;
     const near = rocks
       .map((k, i) => ({ ...k, i, dist: Math.hypot(k.x - r.x, k.z - r.z) }))

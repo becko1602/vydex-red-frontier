@@ -36,7 +36,7 @@ function stepsFor(
       },
     ];
   if(phase==='rocket')return [
-    {title:'Choose the right carrier',text:'These are fictional launch services. Delivery capacity depends on your destination; your spacecraft and its propellant are separate.',explain:true},
+    {title:'Choose the right carrier',text:'These are real NASA launch vehicles; credits and delivery capacities are scaled game values. Delivery capacity depends on your destination; your spacecraft and its propellant are separate.',explain:true},
     {title:'Compare a rocket',text:'Select a carrier card. Check its destination payload capacity, usable fairing and remaining budget.',target:'rocket-catalogue',done:s=>s.tutorial.action==='select-rocket'},
     {title:'Inspect the actual model',text:'Drag the 3D rocket to rotate it, then scroll or pinch to zoom. Card images use the same model.',done:s=>s.tutorial.action==='rocket-rotate'},
     {title:'Continue to assembly',text:'Use this carrier. You can switch again without losing any installed equipment. Preflight enforces fit and budget.',target:'confirm-rocket',done:s=>s.data.stage==='assembly'},

@@ -4691,3 +4691,22 @@ footer i:not(.status-dot) {
 .scene::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.38) 100%);z-index:1}
 .scene canvas{cursor:grab}
 .scene canvas:active{cursor:grabbing}
+.descent-rate{margin:10px 0 6px}
+.descent-rate>span{display:block;font:8px monospace;letter-spacing:.8px;color:#9fb6bd;margin-bottom:6px}
+.descent-rate>div{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.descent-rate button{font:10px monospace;padding:6px 2px;border:1px solid #ffffff26;border-radius:3px;color:#d8e6e8;display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.descent-rate button small{font-size:7px;color:#8ea4ab}
+.descent-rate button.active{border-color:#e7a26a;color:#ffd9b8;background:#e7a26a1f}
+.descent-rate button:disabled{opacity:.4}
+.thrust-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0 4px}
+.thrust-buttons button{font:10px monospace;padding:8px 4px;border:1px solid #8dc7cd55;border-radius:3px;color:#cfe8ec;background:#0f2028;touch-action:none}
+.thrust-buttons button:active{background:#81cbd73d}
+.thrust-buttons kbd{font-size:8px;color:#7f969c;margin-left:4px}
+/* Rover ops live in the right telemetry column, compact so they never cover the scene */
+.surface-telemetry .rover-operations{margin:8px 0 4px}
+.surface-telemetry .rover-ops{grid-template-columns:repeat(3,1fr);gap:4px;margin:0 0 6px}
+.surface-telemetry .rover-ops button{padding:5px 2px;font-size:8px;gap:2px}
+.surface-telemetry .rover-operations .btn{padding:6px;font-size:10px}
+.surface-telemetry .sol-clock{font-size:8px;flex-wrap:wrap;gap:4px}
+.surface-telemetry{max-height:calc(100% - 220px);overflow-y:auto;scrollbar-width:thin}
+.surface-telemetry .micro{display:none}

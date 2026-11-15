@@ -657,6 +657,28 @@ function Landing() {
             }
           />
         </label>
+        <div className="descent-rate" role="group" aria-label="Descent rate">
+          <span>DESCENT RATE{d.assist ? "" : " (assist off)"}</span>
+          <div>
+            {([[-1, "AUTO"], [15, "15"], [8, "8"], [3, "3"], [0, "HOVER"]] as [number, string][]).map(([v, label]) => (
+              <button key={v} disabled={!d.assist} className={d.descentRate === v ? "active" : ""} onClick={() => act(() => { engine.data.descentRate = v; })}>
+                {label}{v > 0 ? <small>m/s</small> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="thrust-buttons">
+          {([[-1, "▼ Less thrust", "Ctrl"], [1, "▲ More thrust", "Shift"]] as [number, string, string][]).map(([dir, label, key]) => (
+            <button
+              key={dir}
+              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); input.throttleChange = dir; }}
+              onPointerUp={() => { input.throttleChange = 0; }}
+              onPointerCancel={() => { input.throttleChange = 0; }}
+            >
+              {label} <kbd>{key}</kbd>
+            </button>
+          ))}
+        </div>
         <span className="micro">
           W/S PITCH · A/D YAW · Q/E ROLL
           <br />
@@ -795,6 +817,7 @@ function Surface() {
           {d.panelTracking ? "Sun tracking on" : "Aim panels at Sun"}
         </button>
         <RoverInstruments/>
+        <RoverOps/>
         <button className="text-link" onClick={()=>useGame.getState().open("observations")}>View stored observations ({d.observations.length})</button>
         <div className="camera-buttons" aria-label="Camera mode">
           {(["chase", "orbit", "map"] as const).map((mode) => (
@@ -821,7 +844,6 @@ function Surface() {
           DUST TRANSMISSION 72% · ARRAY {(d.panelHealth * 100).toFixed(0)}%
         </p>
       </div>
-      <section className="surface-ops-panel"><RoverOps/></section>
       <div className="science-action" data-tutorial="collect-science">
         <div>
           <span className="eyebrow">

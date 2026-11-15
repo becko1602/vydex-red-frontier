@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { Planet } from "./Planet";
 import { Asteroid } from "./Asteroid";
 import { Spacecraft } from "./Spacecraft";
-import { LaunchVehicle, rocketLayout, ROCKET_VISUAL_SCALE } from "./Rocket";
+import { LaunchVehicle, rocketLayout, ROCKET_VISUAL_SCALE, boosterAngles } from "./Rocket";
 import { engine, transfer } from "../sim/game";
 import { useGame } from "../store";
 import { rigCamera } from "../cameraRig";
@@ -228,7 +228,7 @@ function Launch() {
     launcher= d.design.launcher??"titan",
     coreR = (launchers[d.design.launcher??"titan"].diameter / 2) * ROCKET_VISUAL_SCALE,
     sepStart = (d.design.launcher ?? "titan") === "titan" ? 0.49 : 0.38,
-    jointY = rocketLayout(d.design.launcher ?? "titan").body * 0.64 * ROCKET_VISUAL_SCALE,
+    jointY = rocketLayout(d.design.launcher ?? "titan").joint * ROCKET_VISUAL_SCALE,
     ascent=launchAscent(launchers[launcher].ascentModel, masses(d.design).wet, Math.max(0,d.stageTime-launchDuration(d)*.12));
   useFrame((_, dt) => {
     const data = engine.data,
@@ -323,8 +323,8 @@ function Launch() {
           <ExhaustPlume radius={coreR * 0.6} altitudeM={altitudeM} throttle={() => { const q = launchFraction(engine.data); return engine.data.launchChecks.every(Boolean) && q > sepStart + 0.03 && q < 0.7 && !useGame.getState().paused ? 0.8 : 0; }} />
         </group>
         {/* Solid rocket booster plumes until separation */}
-        {launchers[launcher].boosters > 0 && [-1, 1].map((side) => (
-          <group key={side} position={[side * coreR * 1.65, -0.05, 0]}>
+        {boosterAngles(launchers[launcher].boosters).map((a) => (
+          <group key={a} position={[Math.cos(a) * coreR * (1 + 0.44 * 1.08), -0.05, -Math.sin(a) * coreR * (1 + 0.44 * 1.08)]}>
             <ExhaustPlume solid radius={coreR * 0.44} altitudeM={altitudeM} throttle={() => { const q = launchFraction(engine.data); return engine.data.launchChecks.every(Boolean) && q > 0.12 && q < 0.38 && !useGame.getState().paused ? 1 : 0; }} />
           </group>
         ))}
