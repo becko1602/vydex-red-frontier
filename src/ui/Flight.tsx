@@ -2,6 +2,7 @@ import { missionKind, TRANSFER } from "../data/destinations";
 import { PROBE_PHASES } from "../sim/probe";
 import { installed } from "../data/workshop";
 import RoverOps from "./RoverOps";
+import DriveHelp from "./DriveHelp";
 import {
   ArrowRight,
   Check,
@@ -787,7 +788,7 @@ export function LunarStation() {
         </div>
         <label>Zoom <input aria-label="Lunar camera zoom" type="range" min=".55" max="2" step=".05" value={settings.flightZoom} onChange={(e) => setSettings({ flightZoom: +e.target.value })}/></label>
       </div>
-      <TouchControls />
+      <DriveHelp />
       <FlightToolbar />
     </main>
   );

@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useEffect, useMemo, useRef } from 'react';
 import { OrbitControls, Html } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -111,45 +112,140 @@ function blueprintTexture(id: LauncherId) {
   return t;
 }
 
-/** Extensible work platforms (open = retracted for viewing), yellow safety rails. */
+function gratingTexture() {
+  const el = document.createElement('canvas');
+  el.width = el.height = 128;
+  const g = el.getContext('2d')!;
+  g.fillStyle = '#3a3f43';
+  g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#9aa0a3';
+  for (let x = 0; x < 128; x += 8) g.fillRect(x, 0, 2, 128);
+  for (let y = 0; y < 128; y += 32) g.fillRect(0, y, 128, 2);
+  const t = new THREE.CanvasTexture(el);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(6, 6);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+/** Thin steel member between two points. */
+function Member({ a, b, r = 0.05, color = '#c9ccc8' }: { a: [number, number, number]; b: [number, number, number]; r?: number; color?: string }) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), len = d.length();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+  return (
+    <mesh position={A.clone().add(B).multiplyScalar(0.5)} quaternion={q} castShadow>
+      <boxGeometry args={[r * 2, len, r * 2]} />
+      <meshStandardMaterial color={color} metalness={0.7} roughness={0.45} />
+    </mesh>
+  );
+}
+/** Lattice tower: four chord columns with X-bracing on every bay (like the VAB platform support towers). */
+function LatticeTower({ x, height, w = 1.6, d = 3.2 }: { x: number; height: number; w?: number; d?: number }) {
+  const bays = Math.max(4, Math.round(height / 1.6)), bh = height / bays;
+  const cx = [-w / 2, w / 2], cz = [-d / 2, d / 2];
+  const members: React.ReactElement[] = [];
+  cx.forEach((px) => cz.forEach((pz) => members.push(<Member key={`c${px}${pz}`} a={[x + px, -0.4, pz]} b={[x + px, height, pz]} r={0.09} color="#b8bcb9" />)));
+  for (let k = 0; k < bays; k++) {
+    const y0 = k * bh, y1 = y0 + bh;
+    cz.forEach((pz) => {
+      members.push(<Member key={`h${k}${pz}`} a={[x - w / 2, y1, pz]} b={[x + w / 2, y1, pz]} r={0.04} />);
+      members.push(<Member key={`x${k}${pz}`} a={[x - w / 2, y0, pz]} b={[x + w / 2, y1, pz]} r={0.03} />);
+    });
+    cx.forEach((px) => {
+      members.push(<Member key={`hz${k}${px}`} a={[x + px, y1, -d / 2]} b={[x + px, y1, d / 2]} r={0.04} />);
+      members.push(<Member key={`xz${k}${px}`} a={[x + px, y0, k % 2 ? -d / 2 : d / 2]} b={[x + px, y1, k % 2 ? d / 2 : -d / 2]} r={0.03} />);
+    });
+  }
+  return <group>{members}</group>;
+}
+/**
+ * C-shaped extensible work platform. A semicircular cut-out wraps the vehicle
+ * (and its boosters); grated deck, toe-board, mid/top handrails, and
+ * cantilever trusses back to the lattice tower. Platforms retract outward.
+ */
+function Platform({ side, notch, width, depth, grating }: { side: number; notch: number; width: number; depth: number; grating: THREE.Texture }) {
+  const geo = useMemo(() => {
+    const sh = new THREE.Shape();
+    sh.moveTo(0, -depth / 2);
+    sh.lineTo(width, -depth / 2);
+    sh.lineTo(width, depth / 2);
+    sh.lineTo(0, depth / 2);
+    sh.lineTo(0, notch);
+    sh.absarc(0, 0, notch, Math.PI / 2, -Math.PI / 2, true);
+    sh.lineTo(0, -depth / 2);
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.14, bevelEnabled: false, curveSegments: 32 });
+    g.rotateX(Math.PI / 2);
+    return g;
+  }, [notch, width, depth]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  const posts: React.ReactElement[] = [];
+  const rail = (a: [number, number, number], b: [number, number, number], key: string, color = '#f0c33c') => <Member key={key} a={a} b={b} r={0.025} color={color} />;
+  // Outer and side edges get railings; the notch side gets a low curb only (work access to the vehicle).
+  const edge: [number, number][] = [[0.15, -depth / 2], [width, -depth / 2], [width, depth / 2], [0.15, depth / 2]];
+  for (let e = 0; e < 3; e++) {
+    const [x0, z0] = edge[e], [x1, z1] = edge[e + 1], n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.9);
+    for (let k = 0; k <= n; k++) {
+      const x = x0 + ((x1 - x0) * k) / n, z = z0 + ((z1 - z0) * k) / n;
+      posts.push(<Member key={`p${e}${k}`} a={[x, 0, z]} b={[x, 0.55, z]} r={0.02} color="#e0b52f" />);
+    }
+    posts.push(rail([x0, 0.55, z0], [x1, 0.55, z1], `t${e}`));
+    posts.push(rail([x0, 0.3, z0], [x1, 0.3, z1], `m${e}`));
+    posts.push(rail([x0, 0.06, z0], [x1, 0.06, z1], `k${e}`, '#222'));
+  }
+  return (
+    <group scale={[side, 1, 1]}>
+      <mesh geometry={geo} castShadow receiveShadow>
+        <meshStandardMaterial map={grating} color="#ffffff" metalness={0.6} roughness={0.55} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Edge beam around the notch */}
+      <mesh position={[0, -0.12, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[notch, notch + 0.12, 32, 1, -Math.PI / 2, Math.PI]} />
+        <meshStandardMaterial color="#e0b52f" side={THREE.DoubleSide} />
+      </mesh>
+      {/* Underside cantilever trusses */}
+      {[-depth / 2 + 0.2, depth / 2 - 0.2].map((z) => (
+        <group key={z}>
+          <Member a={[notch + 0.2, -0.15, z]} b={[width, -0.15, z]} r={0.06} color="#9ea3a5" />
+          <Member a={[notch + 0.4, -0.15, z]} b={[width, -1.3, z]} r={0.045} color="#9ea3a5" />
+        </group>
+      ))}
+      {posts}
+    </group>
+  );
+}
+/** VAB-style extensible platforms on two lattice towers; they slide out for viewing and close around the stack. */
 function WorkPlatforms({ height, radius }: { height: number; radius: number }) {
-  const ref = useRef<THREE.Group>(null);
-  const levels = [0.22, 0.45, 0.68, 0.88].map((f) => height * f);
+  const grating = useMemo(gratingTexture, []);
+  useEffect(() => () => grating.dispose(), [grating]);
+  const refs = useRef<(THREE.Group | null)[]>([]);
+  const notch = radius * 2.25 + 0.2, width = 3.8, depth = 3.6, towerX = notch + width + 0.8;
+  const levels = [0.18, 0.38, 0.58, 0.78, 0.94].map((f) => height * f);
   useFrame(({ clock }) => {
-    if (!ref.current) return;
-    const open = 0.6 + 0.4 * Math.sin(clock.getElapsedTime() * 0.15);
-    ref.current.children.forEach((lvl) => lvl.children.forEach((half, i) => { half.position.x = (i ? 1 : -1) * (radius * 2.3 + 2.15 + open * 0.9); }));
+    const open = 0.5 + 0.5 * Math.sin(clock.getElapsedTime() * 0.12);
+    refs.current.forEach((g, i) => { if (g) g.position.x = (i % 2 ? 1 : -1) * open * 1.6; });
   });
   return (
-    <group ref={ref}>
-      {levels.map((y) => (
-        <group key={y} position={[0, y, 0]}>
-          {[-1, 1].map((side) => (
-            <group key={side} position={[side * (radius * 2.3 + 2.15), 0, 0]}>
-              <mesh castShadow receiveShadow>
-                <boxGeometry args={[4, 0.18, 6]} />
-                <meshStandardMaterial color="#8d9296" metalness={0.6} roughness={0.5} />
-              </mesh>
-              <mesh position={[0, 0.55, 3]}>
-                <boxGeometry args={[4, 0.06, 0.06]} />
-                <meshStandardMaterial color="#f1c232" />
-              </mesh>
-              <mesh position={[0, 0.55, -3]}>
-                <boxGeometry args={[4, 0.06, 0.06]} />
-                <meshStandardMaterial color="#f1c232" />
-              </mesh>
-              <mesh position={[0, -0.3, 0]}>
-                <boxGeometry args={[0.2, 0.4, 5.6]} />
-                <meshStandardMaterial color="#5e6469" metalness={0.7} roughness={0.4} />
-              </mesh>
-            </group>
-          ))}
+    <group>
+      {[-1, 1].map((side) => <LatticeTower key={side} x={side * towerX} height={height * 1.02} />)}
+      {levels.flatMap((y, li) => [-1, 1].map((side, si) => (
+        <group key={`${li}${side}`} ref={(n) => { refs.current[li * 2 + si] = n; }}>
+          <group position={[0, y, 0]}>
+            <Platform side={side} notch={notch} width={width} depth={depth} grating={grating} />
+          </group>
+        </group>
+      )))}
+      {/* Tail service masts on the launcher deck: umbilical plates to the aft skirt */}
+      {[-1, 1].map((side) => (
+        <group key={`tsm${side}`} position={[side * 1.2, -0.4, -radius * 2.3]}>
+          <LatticeTower x={0} height={2.2} w={0.5} d={0.5} />
+          <mesh position={[0, 2.1, 0.35]} rotation={[0.5, 0, 0]}>
+            <boxGeometry args={[0.6, 0.4, 0.5]} />
+            <meshStandardMaterial color="#d7d8d3" metalness={0.4} roughness={0.5} />
+          </mesh>
         </group>
       ))}
     </group>
   );
 }
-
 /** Vehicle Assembly Building high bay: steel frame, girders, crane, doors and floor markings. */
 function HighBay({ height, id }: { height: number; id: LauncherId }) {
   const H = Math.max(26, height * 1.9), W = 34, D = 30;
@@ -250,14 +346,7 @@ function HighBay({ height, id }: { height: number; id: LauncherId }) {
         <boxGeometry args={[14, 1.2, 11]} />
         <meshStandardMaterial color="#3b3f42" metalness={0.5} roughness={0.6} />
       </mesh>
-      {[-1, 1].map((x) => (
-        <group key={x} position={[x * 2.3, -0.2, 2.6]}>
-          <mesh position={[0, 0.8, 0]}>
-            <boxGeometry args={[0.6, 2, 0.6]} />
-            <meshStandardMaterial color="#62686c" metalness={0.6} roughness={0.4} />
-          </mesh>
-        </group>
-      ))}
+
       <Html position={[0, height * 0.55 + 9.6, -D / 2 + 0.4]} center distanceFactor={36} style={{ pointerEvents: 'none' }}>
         <span className="rocket-gyro-hud">VEHICLE ASSEMBLY · HIGH BAY 3 · {launchers[id].name.toUpperCase()}</span>
       </Html>

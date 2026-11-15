@@ -43,8 +43,8 @@ function Foil({ ghost, silver = false, repeat = 1 }: { ghost: boolean; silver?: 
     <meshStandardMaterial
       map={map}
       color="#ffffff"
-      metalness={0.92}
-      roughness={0.32}
+      metalness={0.75}
+      roughness={0.38}
       transparent={ghost}
       opacity={ghost ? 0.22 : 1}
       depthWrite={!ghost}
@@ -248,7 +248,7 @@ export function PartGeometry({
     );
   if (id === "cruiseEngine" || id === "descentEngine")
     return (
-      <group rotation={id === "cruiseEngine" ? [Math.PI / 2, 0, 0] : [0, 0, 0]}>
+      <group>
         {/* Bipropellant engine: valves + chamber + radiatively cooled niobium bell */}
         <mesh position={[0, 0.36, 0]}>
           <cylinderGeometry args={[0.12, 0.14, 0.16, 16]} />

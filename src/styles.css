@@ -4676,3 +4676,14 @@ footer i:not(.status-dot) {
 @media(max-width:1100px){.surface-ops-panel{left:12px;right:12px;width:auto;min-width:0;transform:none;bottom:250px}.surface-ops-panel .rover-ops{grid-template-columns:repeat(3,1fr)}.rover-minimap{right:25px !important;bottom:170px !important}}
 .flight-ui .landing-cue{bottom:150px !important}.flight-ui .flight-touch{bottom:150px}
 .orbital-ui .flight-touch{bottom:200px}.orbital-ui .orbit-local-label{bottom:auto;top:250px;left:60px}
+.drive-help{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:column-reverse;align-items:center;gap:6px;pointer-events:auto}
+.drive-help-toggle{display:flex;align-items:center;gap:6px;font:10px monospace;letter-spacing:.8px;color:#bcd3d8;padding:6px 12px;border:1px solid #ffffff26;border-radius:999px;background:#0b1820d9}
+.drive-help.open .chev{transform:rotate(180deg)}
+.drive-help-body{display:flex;gap:16px;align-items:flex-end;padding:12px 14px;background:#0b1820f0;border:1px solid #ffffff22;border-radius:4px}
+.drive-help-body dl{display:grid;grid-template-columns:repeat(2,auto);gap:5px 18px;margin:0}
+.drive-help-body dl>div{display:flex;align-items:center;gap:8px}
+.drive-help-body dt{display:flex;gap:3px}
+.drive-help-body dd{margin:0;font:10px system-ui,sans-serif;color:#c8d9dc}
+.drive-help-body kbd{font:9px monospace;padding:2px 5px;border:1px solid #ffffff40;border-radius:3px;color:#e6f1f2}
+.drive-help .touch-controls{position:static;transform:none}
+.drive-help{bottom:50px}

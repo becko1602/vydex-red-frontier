@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { useGame } from "./store";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { engine, neutral, transfer, score, type Stage } from "./sim/game";
 import {
   fixedAdvance,
@@ -89,6 +90,7 @@ import ControlsGuide from "./ui/Controls";
 import InspectionControls, {openInspection} from "./ui/Inspection";
 import Thumbnails from "./scenes/Thumbnails";
 import RoverOps from "./ui/RoverOps";
+import DriveHelp from "./ui/DriveHelp";
 const RocketHangar = lazy(()=>import("./scenes/RocketHangar"));
 const Orbital = lazy(() => import("./scenes/Orbital"));
 const World = lazy(() => import("./scenes/World"));
@@ -251,6 +253,7 @@ function Scene() {
               <Cosmos />
             )}
           </Suspense>
+          <SceneEnvironment/>
           <Thumbnails/>
           <ObservationCapture/>
           <AdaptiveResolution />
@@ -271,6 +274,26 @@ function Scene() {
       )}
     </div>
   );
+}
+/** Image-based lighting so metals, foil and glass reflect a neutral studio environment instead of rendering black. */
+function SceneEnvironment() {
+  const { gl, scene } = useThree();
+  const stage = useGame((s) => s.data.stage);
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl);
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = env;
+    return () => {
+      scene.environment = null;
+      env.dispose();
+      pmrem.dispose();
+    };
+  }, [gl, scene]);
+  useEffect(() => {
+    // Hangars are lit interiors; in space and on planets the Sun dominates.
+    scene.environmentIntensity = ["rocket", "assembly", "preflight"].includes(stage) ? 0.9 : 0.35;
+  }, [scene, stage]);
+  return null;
 }
 function AdaptiveResolution() {
   const { gl } = useThree();
@@ -854,15 +877,7 @@ function Surface() {
             ""}
         </Button>
       </div>
-      <div className="drive-hint">
-        <kbd>W</kbd>
-        <kbd>A</kbd>
-        <kbd>S</kbd>
-        <kbd>D</kbd> DRIVE <span />
-        <kbd>SPACE</kbd> BRAKE <span />
-        <kbd>ESC</kbd> PAUSE
-      </div>
-      <TouchControls />
+      <DriveHelp />
     </main>
   );
 }

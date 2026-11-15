@@ -55,7 +55,7 @@ function foil(base: [number, number, number], seed: number) {
 
 export function hardwareTextures() {
   if (cache) return cache;
-  const mli = foil([196, 150, 62], 11);
+  const mli = foil([214, 162, 64], 11);
   const mliSilver = foil([178, 182, 186], 23);
   // Triple-junction GaAs cells: dark blue-violet with silver busbars, cover-glass sheen.
   const cells = canvas(512, 512, (c) => {
