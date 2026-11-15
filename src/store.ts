@@ -93,6 +93,13 @@ const safeRead = () => {
   }
 };
 let savedSettings: Partial<Settings> = {};
+let soundUpgrade = false;
+try {
+  soundUpgrade = localStorage.getItem("vydex-sound-v2") !== "1";
+  localStorage.setItem("vydex-sound-v2", "1");
+} catch {
+  /* storage optional */
+}
 try {
   savedSettings = JSON.parse(safeRead() || "{}");
 } catch {
@@ -146,8 +153,8 @@ export const useGame = create<UI>((set, get) => ({
     fairingEnvelope:true,
     stowed:true,
     quality: "medium",
-    muted: true,
-    volume: 0.3,
+    muted: false,
+    volume: 0.6,
     reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
     camera: "chase",
     showOrbits: true,
@@ -155,6 +162,8 @@ export const useGame = create<UI>((set, get) => ({
     showTrajectory: true,
     selectedPlanet: "mars",
     ...savedSettings,
+    // Sound used to default to muted; turn it on once for existing players after the audio upgrade.
+    ...(soundUpgrade ? { muted: false, volume: Math.max(0.5, savedSettings.volume ?? 0.6) } : {}),
     inspection:false,
   },
   saveMessage: "",

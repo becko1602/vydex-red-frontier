@@ -91,6 +91,7 @@ import InspectionControls, {openInspection} from "./ui/Inspection";
 import Thumbnails from "./scenes/Thumbnails";
 import RoverOps from "./ui/RoverOps";
 import { attachCameraRig } from "./cameraRig";
+import { startMissionAudio } from "./audio";
 import PostFX from "./scenes/PostFX";
 import DriveHelp from "./ui/DriveHelp";
 const RocketHangar = lazy(()=>import("./scenes/RocketHangar"));
@@ -1557,6 +1558,7 @@ function useSound() {
         /* Audio optional */
       }
     };
+    const stopMission = startMissionAudio();
     const soundTimer = setInterval(() => {
       if (!context || !bedGain) return;
       const ui = useGame.getState(),
@@ -1583,8 +1585,9 @@ function useSound() {
               d.landingStarted
             ? d.lander.throttle * 0.012
             : active && d.stage==='orbit' && d.destination==='asteroid' && d.engineEnabled && d.cruiseFuel>0 ? d.throttle*.008 : 0;
+      void level;
       bedGain.gain.setTargetAtTime(
-        level * ui.settings.volume,
+        0,
         context.currentTime,
         0.12,
       );
@@ -1592,6 +1595,7 @@ function useSound() {
     window.addEventListener("pointerdown", click);
     return () => {
       clearInterval(soundTimer);
+      stopMission();
       bed?.stop();
       window.removeEventListener("pointerdown", click);
       void context?.close();
