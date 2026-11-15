@@ -45,7 +45,7 @@ Copied unchanged from NASA 3D Resources downloads (https://science.nasa.gov/3d-r
 
 | File | Source model | Used in |
 | --- | --- | --- |
-| `perseverance.glb` | Mars 2020 Perseverance Rover | Rover in assembly (rover part), landing payload, Mars/Moon/Mercury surface |
+| `perseverance.glb` | Mars 2020 Perseverance Rover (merged `Wheels_objs` mesh is split into six wheels at load so they spin and steer) | Rover in assembly (rover part), landing payload, Mars/Moon/Mercury surface |
 | `apollo-lm.glb` | Apollo Lunar Module | Lander for Moon and Mercury (powered descent + landed station) |
 | `calipso.glb` | CALIPSO | Deployed Earth-orbit satellite |
 | `ace.glb` | Advanced Composition Explorer | Orbiter for Venus–Neptune entry-probe missions |

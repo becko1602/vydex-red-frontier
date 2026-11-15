@@ -114,7 +114,89 @@ const ARM_CLIPS = ["arm.003Action", "arm.002Action", "armAction", "arm.004Action
 const ARM_DEPLOYED_T = 9;
 const MAST_CLIPS = ["CylinderAction", "bottomAction", "Cylinder.002Action"];
 const MAST_UP_T = 3;
-type RoverRig = { mixer: THREE.AnimationMixer; arm: THREE.AnimationAction[]; mast: THREE.AnimationAction[]; top?: THREE.Object3D; topRest?: THREE.Quaternion; head?: THREE.Object3D; hga?: THREE.Object3D; root: THREE.Object3D };
+type WheelRig = { steer: THREE.Group; spin: THREE.Group; side: number; pos: -1 | 0 | 1 };
+/** Real Perseverance wheel: 52.5 cm diameter. */
+const WHEEL_R = 0.2625;
+/**
+ * The glTF merges all six wheels into one node (`Wheels_objs`, 3 material
+ * primitives). Split it at load time: assign every triangle to the nearest of
+ * six wheel clusters (left/right × front/middle/rear), rebuild one geometry per
+ * wheel per material, re-centre it on the hub and nest it in steer → spin groups.
+ */
+function splitWheels(root: THREE.Object3D): WheelRig[] {
+  const node = root.getObjectByName("Wheels_objs");
+  if (!node) return [];
+  // Idempotent: React StrictMode / re-mounts may run this twice on the same clone.
+  if (node.userData.wheelRigs) return node.userData.wheelRigs as WheelRig[];
+  const meshes: THREE.Mesh[] = [];
+  node.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+  if (!meshes.length) return [];
+  node.updateMatrixWorld(true);
+  const toNode = new THREE.Matrix4().copy(node.matrixWorld).invert();
+  // Triangle soup per mesh in the node's frame.
+  const soups = meshes.map((m) => {
+    const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone());
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toNode, m.matrixWorld));
+    return { mesh: m, g };
+  });
+  // 1-D k-means on z (3 axles), side from the sign of x.
+  const zs: number[] = [];
+  for (const { g } of soups) { const p = g.attributes.position; for (let i = 0; i < p.count; i += 3) zs.push((p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3); }
+  let c = [Math.min(...zs), 0, Math.max(...zs)];
+  for (let it = 0; it < 12; it++) {
+    const sum = [0, 0, 0], n = [0, 0, 0];
+    for (const z of zs) { const k = c.reduce((b, v, i) => (Math.abs(z - v) < Math.abs(z - c[b]) ? i : b), 0); sum[k] += z; n[k]++; }
+    c = c.map((v, i) => (n[i] ? sum[i] / n[i] : v));
+  }
+  const order = [...c.keys()].sort((a, b) => c[a] - c[b]); // rear(−z) → front(+z)
+  const key = (x: number, z: number) => { const k = c.reduce((b, v, i) => (Math.abs(z - v) < Math.abs(z - c[b]) ? i : b), 0); return `${x < 0 ? -1 : 1}:${order.indexOf(k)}`; };
+  // Bucket triangles.
+  const buckets = new Map<string, { mesh: THREE.Mesh; pos: number[]; nor: number[]; uv: number[] }[]>();
+  const box = new Map<string, THREE.Box3>();
+  for (const { mesh, g } of soups) {
+    const p = g.attributes.position, nrm = g.attributes.normal, uv = g.attributes.uv;
+    const local = new Map<string, { mesh: THREE.Mesh; pos: number[]; nor: number[]; uv: number[] }>();
+    for (let i = 0; i < p.count; i += 3) {
+      const k = key((p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3);
+      let b = local.get(k);
+      if (!b) { b = { mesh, pos: [], nor: [], uv: [] }; local.set(k, b); }
+      if (!box.has(k)) box.set(k, new THREE.Box3());
+      for (let v = i; v < i + 3; v++) {
+        b.pos.push(p.getX(v), p.getY(v), p.getZ(v));
+        box.get(k)!.expandByPoint(new THREE.Vector3(p.getX(v), p.getY(v), p.getZ(v)));
+        if (nrm) b.nor.push(nrm.getX(v), nrm.getY(v), nrm.getZ(v));
+        if (uv) b.uv.push(uv.getX(v), uv.getY(v));
+      }
+    }
+    for (const [k, b] of local) { if (!buckets.has(k)) buckets.set(k, []); buckets.get(k)!.push(b); }
+    g.dispose();
+  }
+  // Remove the merged originals and rebuild per-wheel pivots.
+  for (const m of meshes) m.parent?.remove(m);
+  const rigs: WheelRig[] = [];
+  for (const [k, parts] of buckets) {
+    const centre = box.get(k)!.getCenter(new THREE.Vector3());
+    const steer = new THREE.Group(), spin = new THREE.Group();
+    steer.position.copy(centre);
+    steer.add(spin);
+    for (const b of parts) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3));
+      if (b.nor.length) g.setAttribute("normal", new THREE.Float32BufferAttribute(b.nor, 3));
+      if (b.uv.length) g.setAttribute("uv", new THREE.Float32BufferAttribute(b.uv, 2));
+      g.translate(-centre.x, -centre.y, -centre.z);
+      const m = new THREE.Mesh(g, b.mesh.material);
+      m.castShadow = m.receiveShadow = true;
+      spin.add(m);
+    }
+    node.add(steer);
+    const [side, idx] = k.split(":").map(Number);
+    rigs.push({ steer, spin, side, pos: (idx - 1) as -1 | 0 | 1 });
+  }
+  node.userData.wheelRigs = rigs;
+  return rigs;
+}
+type RoverRig = { wheels: WheelRig[]; mixer: THREE.AnimationMixer; arm: THREE.AnimationAction[]; mast: THREE.AnimationAction[]; top?: THREE.Object3D; topRest?: THREE.Quaternion; head?: THREE.Object3D; hga?: THREE.Object3D; root: THREE.Object3D };
 /**
  * Rover = imported NASA Mars 2020 Perseverance model (public/models/perseverance.glb).
  * Driven parts: robotic arm and mast via the model's own animation clips, mast
@@ -160,7 +242,7 @@ export function Rover({
       return [a];
     });
     const top = m.scene.getObjectByName("top") ?? undefined;
-    rig.current = { mixer, arm: take(ARM_CLIPS), mast: take(MAST_CLIPS), top, topRest: top?.quaternion.clone(), head: m.scene.getObjectByName("head") ?? undefined, hga: m.scene.getObjectByName("antenna_hg") ?? undefined, root: m.root };
+    rig.current = { wheels: splitWheels(m.scene), mixer, arm: take(ARM_CLIPS), mast: take(MAST_CLIPS), top, topRest: top?.quaternion.clone(), head: m.scene.getObjectByName("head") ?? undefined, hga: m.scene.getObjectByName("antenna_hg") ?? undefined, root: m.root };
   }, []);
   const scanning = () => {
     const d = engine.data;
@@ -185,6 +267,15 @@ export function Rover({
       // Mast pan: sweep while imaging, slow idle look-around otherwise.
       k.current.pan = THREE.MathUtils.damp(k.current.pan, inst === "camera" ? Math.sin(t * 0.7) * 0.7 * anim : Math.sin(t * 0.15) * 0.2 * anim, 3, step);
       if (r.top && r.topRest) r.top.quaternion.copy(r.topRest).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), k.current.pan));
+    }
+    // Wheels: roll with ground speed (ω = v / r, inner/outer side differential
+    // while turning); corner wheels (front/rear) steer in opposite directions.
+    if (r && !frozen) {
+      const v = moving ? d.rover.speed : 0, steer = moving ? d.rover.steering : 0;
+      for (const w of r.wheels) {
+        w.spin.rotation.x += ((v - w.side * steer * 0.45) * step) / WHEEL_R;
+        w.steer.rotation.y = w.pos === 0 ? 0 : w.pos * steer * 0.35;
+      }
     }
     // Scan beams follow the real mast head.
     if (r?.head && beams.current && self.current) {
