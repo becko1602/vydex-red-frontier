@@ -4,6 +4,7 @@ import { Stars, Line, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { engine } from "../sim/game";
 import { useGame } from "../store";
+import { rigCamera } from "../cameraRig";
 import { Planet } from "./Planet";
 import VehicleEffects from "./VehicleEffects";
 import { Spacecraft, PartGeometry } from "./Spacecraft";
@@ -232,6 +233,7 @@ export default function Orbital() {
       const a = data.stageTime * 0.06;
       cam.set(target.x + Math.sin(a) * 16 * z, target.y + 5 * z, target.z + Math.cos(a) * 16 * z);
     }
+    if (settings.flightCamera !== "overview") rigCamera(cam, target);
     camera.position.lerp(cam, settings.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 4));
     camera.lookAt(settings.flightCamera === "overview" && asteroid ? new THREE.Vector3(0, 0, 10) : target);
   });

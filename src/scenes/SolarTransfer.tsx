@@ -4,6 +4,7 @@ import { Stars, Line, Html, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { engine } from "../sim/game";
 import { useGame } from "../store";
+import { rigCamera } from "../cameraRig";
 import { Planet } from "./Planet";
 import { Asteroid } from "./Asteroid";
 import { Spacecraft } from "./Spacecraft";
@@ -148,6 +149,7 @@ function Heliocentric({ dest }: { dest: DestinationId }) {
       const a = data.stageTime * 0.05;
       cam.set(v.x + Math.sin(a) * 3.2 * z, v.y + 1.6 * z, v.z + Math.cos(a) * 3.2 * z);
     }
+    rigCamera(cam, v);
     camera.position.lerp(cam, settings.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 3));
     camera.lookAt(v);
   });
@@ -275,6 +277,7 @@ function Geocentric({ dest }: { dest: DestinationId }) {
     if (settings.flightCamera === "overview") cam.set(-DIST / 2, 38 * z, 46 * z);
     else if (settings.flightCamera === "follow") cam.set(v.x + 0.35 * z, v.y + 0.18 * z, v.z + 0.6 * z);
     else cam.set(v.x + Math.sin(engine.data.stageTime * 0.05) * 1.6 * z, v.y + 0.7 * z, v.z + Math.cos(engine.data.stageTime * 0.05) * 1.6 * z);
+    if (settings.flightCamera !== "overview") rigCamera(cam, v);
     camera.position.lerp(cam, 1 - Math.exp(-Math.min(dt, 0.1) * 3));
     camera.lookAt(settings.flightCamera === "overview" ? new THREE.Vector3(-DIST / 2, 0, 0) : v);
   });

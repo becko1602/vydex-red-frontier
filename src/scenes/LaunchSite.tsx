@@ -159,10 +159,12 @@ export function LaunchEnvironment({ altitudeM }: { altitudeM: MutableRefObject<n
           <meshStandardMaterial color="#56653a" roughness={1} />
         </mesh>
         {/* Crawlerway gravel road toward the assembly building (west). */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-1200, -0.9, 6]}>
-          <planeGeometry args={[2300, 26]} />
-          <meshStandardMaterial color="#b9b1a0" roughness={1} />
-        </mesh>
+        {[-3.2, 3.2].map((z) => (
+          <mesh key={z} rotation={[-Math.PI / 2, 0, 0]} position={[-1240, -0.92, z]}>
+            <planeGeometry args={[2400, 4]} />
+            <meshStandardMaterial color="#8f8a7f" roughness={1} />
+          </mesh>
+        ))}
         {/* Distant assembly building on the horizon. */}
         <mesh position={[-2600, 60, 220]} castShadow>
           <boxGeometry args={[160, 125, 140]} />
@@ -239,7 +241,7 @@ export function PadInfrastructure({ rocketHeight = 12 }: { rocketHeight?: number
       <group position={[-60, 0, -55]} scale={0.42}>
         {[0, 1, 2, 3].map((k) => (
           <mesh key={k} position={[Math.cos(k * Math.PI / 2) * 3, 12, Math.sin(k * Math.PI / 2) * 3]} rotation={[Math.sin(k * Math.PI / 2) * 0.08, 0, -Math.cos(k * Math.PI / 2) * 0.08]}>
-            <cylinderGeometry args={[0.3, 0.4, 24, 8]} />
+            <cylinderGeometry args={[0.7, 0.9, 24, 8]} />
             <meshStandardMaterial color="#a6aaa5" metalness={0.6} roughness={0.4} />
           </mesh>
         ))}
@@ -261,11 +263,7 @@ export function PadInfrastructure({ rocketHeight = 12 }: { rocketHeight?: number
           </mesh>
         </group>
       ))}
-      {/* Ramp up to the hardstand */}
-      <mesh position={[-22, -0.25, 0]} rotation={[0, 0, -0.04]} receiveShadow>
-        <boxGeometry args={[18, 0.5, 14]} />
-        <meshStandardMaterial color="#8f918c" roughness={0.95} />
-      </mesh>
+
     </group>
   );
 }
@@ -416,9 +414,12 @@ export function LaunchClouds({ active, rocket, altitudeM }: { active: () => bool
 /** Rainbird deluge: 1 million litres of water dumped onto the pad seconds before ignition. */
 export function Deluge({ active }: { active: () => boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null);
+  const tex = useMemo(softSprite, []);
+  useEffect(() => () => tex.dispose(), [tex]);
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const N = 240;
-  const seeds = useMemo(() => Array.from({ length: N }, (_, i) => ({ a: (i / N) * Math.PI * 2 * 7, s: Math.random(), nozzle: i % 6 })), []);
+  const { camera } = useThree();
+  const N = 180;
+  const seeds = useMemo(() => Array.from({ length: N }, (_, i) => ({ a: Math.random() * Math.PI * 2, s: Math.random(), nozzle: i % 8, spread: 0.6 + Math.random() * 0.8 })), []);
   useFrame(({ clock }) => {
     const m = ref.current;
     if (!m) return;
@@ -426,12 +427,14 @@ export function Deluge({ active }: { active: () => boolean }) {
     if (!m.visible) return;
     const t = clock.getElapsedTime();
     seeds.forEach((k, i) => {
-      const age = (t * 0.9 + k.s) % 1;
-      const nz = (k.nozzle / 6) * Math.PI * 2;
-      const base = new THREE.Vector3(Math.cos(nz) * 7, 3, Math.sin(nz) * 7);
-      const v = new THREE.Vector3(-Math.cos(nz) * 9 + Math.cos(k.a) * 1.5, 7, -Math.sin(nz) * 9 + Math.sin(k.a) * 1.5);
-      dummy.position.copy(base).addScaledVector(v, age).add(new THREE.Vector3(0, -9.8 * age * age * 0.9, 0));
-      dummy.scale.setScalar(0.06 + age * 0.12);
+      // Rainbird nozzles around the deck throw arcs of water that turn to mist.
+      const age = (t * 0.7 + k.s) % 1;
+      const nz = (k.nozzle / 8) * Math.PI * 2;
+      const base = new THREE.Vector3(Math.cos(nz) * 4.2, 0.2, Math.sin(nz) * 4.2);
+      const v = new THREE.Vector3(-Math.cos(nz) * 4 * k.spread + Math.cos(k.a) * 0.6, 4.2, -Math.sin(nz) * 4 * k.spread + Math.sin(k.a) * 0.6);
+      dummy.position.copy(base).addScaledVector(v, age).add(new THREE.Vector3(0, -6 * age * age, 0));
+      dummy.quaternion.copy(camera.quaternion);
+      dummy.scale.setScalar(0.4 + age * 1.6);
       dummy.updateMatrix();
       m.setMatrixAt(i, dummy.matrix);
     });
@@ -439,8 +442,8 @@ export function Deluge({ active }: { active: () => boolean }) {
   });
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, N]} frustumCulled={false} visible={false}>
-      <sphereGeometry args={[1, 6, 4]} />
-      <meshStandardMaterial color="#e8f2f6" transparent opacity={0.55} roughness={0.2} depthWrite={false} />
+      <planeGeometry args={[1, 1]} />
+      <meshLambertMaterial map={tex} color="#eef5f8" transparent opacity={0.45} depthWrite={false} />
     </instancedMesh>
   );
 }

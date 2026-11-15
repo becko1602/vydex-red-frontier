@@ -75,8 +75,8 @@ export function FlightToolbar() {
         <input
           aria-label="Flight camera distance"
           type="range"
-          min=".55"
-          max="2"
+          min=".3"
+          max="3.5"
           step=".05"
           value={settings.flightZoom}
           onChange={(e) => set({ flightZoom: +e.target.value })}
@@ -786,7 +786,7 @@ export function LunarStation() {
             <button key={mode} className={settings.camera === mode ? "active" : ""} onClick={() => setSettings({ camera: mode })}>{mode}</button>
           ))}
         </div>
-        <label>Zoom <input aria-label="Lunar camera zoom" type="range" min=".55" max="2" step=".05" value={settings.flightZoom} onChange={(e) => setSettings({ flightZoom: +e.target.value })}/></label>
+        <label>Zoom <input aria-label="Lunar camera zoom" type="range" min=".3" max="3.5" step=".05" value={settings.flightZoom} onChange={(e) => setSettings({ flightZoom: +e.target.value })}/></label>
       </div>
       <DriveHelp />
       <FlightToolbar />

@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { engine, rocks, BASE_POSITION, BASE_RADIUS, sunElevation } from "../sim/game";
 import { clamp, seeded, terrainHeight as terrainModel } from "../sim/physics";
 import { useGame } from "../store";
+import { rigCamera } from "../cameraRig";
 import { roverView } from "../sim/controls";
 import { Rover } from "./Models";
 import { Spacecraft } from "./Spacecraft";
@@ -627,6 +628,7 @@ export default function World() {
       } else {
         tmp.set(l.x + back.x * 10 * zoom, l.y + (3.6 + Math.min(4, h * 0.01)) * zoom, l.z + back.z * 10 * zoom);
       }
+      if (settings.flightCamera !== "overview") rigCamera(tmp, new THREE.Vector3(l.x, l.y, l.z));
       camera.position.lerp(tmp, smooth);
       cameraTarget.current.set(l.x, l.y - 1.2 - Math.min(3, h * 0.008), l.z);
       camera.lookAt(cameraTarget.current);
@@ -646,6 +648,7 @@ export default function World() {
     else if (settings.flightCamera === "cinematic") tmp.set(r.x + Math.sin(d.stageTime * 0.05 + 0.65) * 12 * zoom, h + 5 * zoom, r.z + Math.cos(d.stageTime * 0.05 + 0.65) * 12 * zoom);
     else if (settings.flightCamera === "overview") tmp.set(r.x + 22 * zoom, h + 18 * zoom, r.z + 26 * zoom);
     else tmp.set(r.x + view.cameraX * 0.85 * zoom, Math.max(h + 3.6 * zoom, terrainHeight(r.x + view.cameraX, r.z + view.cameraZ) + 1.5), r.z + view.cameraZ * 0.85 * zoom);
+    if (settings.camera !== "map") rigCamera(tmp, new THREE.Vector3(r.x, h + 1.2, r.z));
     camera.position.lerp(tmp, smooth);
     cameraTarget.current.set(r.x + view.lookX, h + 1.2, r.z + view.lookZ);
     camera.lookAt(cameraTarget.current);

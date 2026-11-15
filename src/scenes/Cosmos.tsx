@@ -8,12 +8,14 @@ import { Spacecraft } from "./Spacecraft";
 import { LaunchVehicle, rocketLayout, ROCKET_VISUAL_SCALE } from "./Rocket";
 import { engine, transfer } from "../sim/game";
 import { useGame } from "../store";
+import { rigCamera } from "../cameraRig";
 import { planetPositions, transferPosition, clamp, launchAscent, masses } from "../sim/physics";
 import { payloadEnvelope } from "../sim/payload";
 import { launchFraction, launchDuration } from "../sim/journey";
 import { launchers } from "../data/launchVehicles";
 import { solarSystem } from "../data/solarSystem";
 import SolarTransfer from "./SolarTransfer";
+import { Member, LatticeTower } from "./Structures";
 import { LaunchEnvironment, PadInfrastructure, ExhaustPlume, LaunchClouds, Deluge, VaporCone, LAUNCH_UNITS_PER_M } from "./LaunchSite";
 import {
   heliocentricBodyIds,
@@ -68,71 +70,113 @@ function OrbitDirectionArrow({
     </group>
   );
 }
-function LaunchComplex({ height, active, liftoff }: { height: number; active: boolean; liftoff: boolean }) {
-  const arms = useRef<THREE.Group>(null), clamps = useRef<THREE.Group>(null);
+/** A swing arm: steel truss from the tower face to the vehicle, rotating horizontally to retract. */
+function SwingArm({ length, crew = false }: { length: number; crew?: boolean }) {
+  const L = length, H = 0.5;
+  const nDiag = Math.max(2, Math.round(L / 0.6)), diag = Array.from({ length: nDiag }, (_, k) => (k / nDiag) * L);
+  return (
+    <group>
+      {[-0.3, 0.3].map((z) => (
+        <group key={z}>
+          <Member a={[0, 0, z]} b={[L, 0, z]} r={0.05} color="#8f9a9c" />
+          <Member a={[0, H, z]} b={[L, H, z]} r={0.05} color="#8f9a9c" />
+          {diag.map((x, k) => <Member key={k} a={[x, k % 2 ? 0 : H, z]} b={[x + L / diag.length, k % 2 ? H : 0, z]} r={0.025} color="#a7b0b2" />)}
+        </group>
+      ))}
+      {crew ? (
+        <>
+          {/* Enclosed crew/servicing walkway and white room at the vehicle */}
+          <mesh position={[L / 2, H / 2 + 0.05, 0]}>
+            <boxGeometry args={[L, H + 0.1, 0.7]} />
+            <meshStandardMaterial color="#dfe1dc" roughness={0.6} transparent opacity={0.92} />
+          </mesh>
+          <mesh position={[L - 0.35, H / 2 + 0.1, 0]}>
+            <boxGeometry args={[0.7, H + 0.35, 1.0]} />
+            <meshStandardMaterial color="#f2f2ee" roughness={0.5} />
+          </mesh>
+        </>
+      ) : (
+        <>
+          {/* Umbilical carrier plate + hoses */}
+          <mesh position={[L - 0.08, H / 2, 0]}>
+            <boxGeometry args={[0.12, 0.55, 0.6]} />
+            <meshStandardMaterial color="#c58444" metalness={0.5} roughness={0.45} />
+          </mesh>
+          {[-0.12, 0.12].map((z) => (
+            <mesh key={z} position={[L / 2, -0.12, z]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.05, 0.05, L, 8]} />
+              <meshStandardMaterial color="#d8d8d0" roughness={0.6} />
+            </mesh>
+          ))}
+        </>
+      )}
+    </group>
+  );
+}
+function LaunchComplex({ height, active, liftoff, radius = 0.55 }: { height: number; active: boolean; liftoff: boolean; radius?: number }) {
+  const arms = useRef<(THREE.Group | null)[]>([]), clamps = useRef<(THREE.Group | null)[]>([]);
   const retract = useRef(0), release = useRef(0);
+  const towerX = -(radius * 2.3 + 2.4), face = towerX + 1.1;
+  const armLevels = [0.32, 0.55, 0.74, 0.88].map((f) => height * f);
   useFrame((_, dt) => {
-    retract.current = THREE.MathUtils.damp(retract.current, active ? 1 : 0, 1.8, Math.min(dt, .1));
-    release.current = THREE.MathUtils.damp(release.current, liftoff ? 1 : 0, 4, Math.min(dt, .1));
-    if (arms.current) arms.current.rotation.z = retract.current * 1.2;
-    if (clamps.current) clamps.current.rotation.y = release.current * .35;
+    // Arms swing away staggered (lower first), like real T-minus sequencing.
+    retract.current = THREE.MathUtils.damp(retract.current, active ? 1 : 0, 0.9, Math.min(dt, .1));
+    release.current = THREE.MathUtils.damp(release.current, liftoff ? 1 : 0, 6, Math.min(dt, .1));
+    arms.current.forEach((g, i) => {
+      if (!g) return;
+      const k = THREE.MathUtils.clamp(retract.current * 1.6 - i * 0.18, 0, 1);
+      g.rotation.y = (i % 2 ? -1 : 1) * k * (Math.PI / 2) * 0.95;
+    });
+    clamps.current.forEach((g) => { if (g) g.rotation.z = release.current * 0.9; });
   });
-  const levels = [.2, .42, .64, .84, .96].map(f => height * f);
-  const steel = <meshStandardMaterial color="#40545a" metalness={.72} roughness={.4} />;
-  const concrete = <meshStandardMaterial color="#686e6a" metalness={.12} roughness={.92} />;
+  const concrete = <meshStandardMaterial color="#8a8c87" metalness={.05} roughness={.95} />;
+  const holdDowns = [0, 1, 2, 3].map((i) => i * Math.PI / 2 + Math.PI / 4);
   return <group>
-    {/* Rectangular foundation follows the surrounding planetary surface. */}
-    <mesh position={[0,-.31,0]} receiveShadow castShadow><boxGeometry args={[30,.62,38]}/>{concrete}</mesh>
-    <mesh position={[0,-.7,0]}><boxGeometry args={[38,.3,48]}/><meshStandardMaterial color="#343e3e" roughness={1}/></mesh>
-    {/* Recessed flame trench, heat shield and exhaust diversion channel. */}
-    <mesh position={[0,-.025,0]}><boxGeometry args={[3.3,.07,22]}/><meshStandardMaterial color="#10191b" metalness={.5} roughness={.8}/></mesh>
-    {[-1,1].map(side=><group key={`trench-${side}`}>
-      <mesh position={[side*2,-.02,0]}><boxGeometry args={[.42,.36,22]}/><meshStandardMaterial color="#404a49" metalness={.2} roughness={.9}/></mesh>
-      <mesh position={[side*7.1,.06,0]}><boxGeometry args={[10,.16,26]}/>{concrete}</mesh>
-      <mesh position={[side*4.2,.12,0]} rotation={[0,0,side*.28]}><boxGeometry args={[1.2,.24,3.4]}/><meshStandardMaterial color="#8c8e85" metalness={.32} roughness={.66}/></mesh>
-      <mesh position={[side*10,.13,-2]}><boxGeometry args={[4,.26,5]}/>{concrete}</mesh>
-    </group>)}
-    <mesh position={[0,-.47,0]}><boxGeometry args={[10,.25,9]}/><meshStandardMaterial color="#202a2c" metalness={.4} roughness={.75}/></mesh>
-    {/* Fixed steel service tower. Only its hinged umbilicals retract. */}
-    <group position={[-6.5,0,-1]}>
-      {[-1,1].map(z=><mesh key={z} position={[0,height*.5,z*2.25]} castShadow><boxGeometry args={[.5,height, .5]}/>{steel}</mesh>)}
-      {levels.map(y=><group key={y}>
-        <mesh position={[0,y,0]} castShadow><boxGeometry args={[.58,.24,5.1]}/>{steel}</mesh>
-        <mesh position={[0,y+.2,0]}><boxGeometry args={[.7,.035,5.4]}/><meshStandardMaterial color="#c39351" metalness={.45} roughness={.5}/></mesh>
-        {[-1,1].map(z=><mesh key={z} position={[0,y,z*2.25]}><boxGeometry args={[.48,.68,.48]}/><meshStandardMaterial color="#27373b" metalness={.6} roughness={.48}/></mesh>)}
-      </group>)}
-      {levels.slice(0,-1).map((y,i)=><group key={`brace-${i}`}>
-        {[-1,1].map(z=><mesh key={z} position={[0,y+height*.1,z*2.25]} rotation={[0,0,(i%2?1:-1)*.42]}><boxGeometry args={[.16,height*.2,.16]}/>{steel}</mesh>)}
-      </group>)}
-      {Array.from({length:14},(_,i)=><mesh key={`stair-${i}`} position={[.48,i*height*.062,-1.7+i%2*.25]} rotation={[0,0,.1]}><boxGeometry args={[.9,.09,.65]}/><meshStandardMaterial color="#768285" metalness={.62} roughness={.48}/></mesh>)}
-      {[-1,1].map(z=><mesh key={`rail-${z}`} position={[0,height*.52,z*2.8]}><boxGeometry args={[.16,height*1.06,.16]}/><meshStandardMaterial color="#53656a" metalness={.7} roughness={.4}/></mesh>)}
+    {/* Hardstand and flame trench (runs along Z) */}
+    <mesh position={[0,-1.5,0]} receiveShadow><boxGeometry args={[40,1.2,46]}/>{concrete}</mesh>
+    <mesh position={[0,-1.29,0]}><boxGeometry args={[3.4,0.8,30]}/><meshStandardMaterial color="#1b2022" roughness={.9}/></mesh>
+    {/* Flame deflector wedge in the trench */}
+    <mesh position={[0,-1.6,0]} rotation={[Math.PI/4,0,0]}><boxGeometry args={[3.2,1.2,1.2]}/><meshStandardMaterial color="#5b5d58" metalness={.4} roughness={.7}/></mesh>
+    {/* Mobile launcher deck with exhaust hole */}
+    {[[0, 2.7, 9, 2.6], [0, -2.7, 9, 2.6], [3.1, 0, 2.8, 2.8], [-3.1, 0, 2.8, 2.8]].map(([x, z, w, d], k) => (
+      <mesh key={k} position={[x, -0.5, z]} castShadow receiveShadow><boxGeometry args={[w, 1, d]}/><meshStandardMaterial color="#3d4144" metalness={.45} roughness={.6}/></mesh>
+    ))}
+    {[-1,1].flatMap(x=>[-1,1].map(z=><mesh key={`${x}${z}`} position={[x*3.8,-1.05,z*3.4]}><boxGeometry args={[0.8,0.6,0.8]}/><meshStandardMaterial color="#565a5c" metalness={.5} roughness={.5}/></mesh>))}
+    {/* Hold-down posts with release jaws under the core and booster skirts */}
+    {holdDowns.map((a, i) => (
+      <group key={i} position={[Math.cos(a) * radius * 1.05, 0, Math.sin(a) * radius * 1.05]} rotation={[0, -a, 0]}>
+        <mesh position={[0, 0.08, 0]}><boxGeometry args={[0.28, 0.16, 0.22]}/><meshStandardMaterial color="#c47b3f" metalness={.5} roughness={.45}/></mesh>
+        <group ref={(n) => { clamps.current[i] = n; }} position={[0.12, 0.16, 0]}>
+          <mesh position={[0.05, 0.08, 0]}><boxGeometry args={[0.08, 0.18, 0.18]}/><meshStandardMaterial color="#9ea29d" metalness={.75} roughness={.35}/></mesh>
+        </group>
+      </group>
+    ))}
+    {/* Fixed service structure: lattice tower with lightning mast */}
+    <group position={[0, 0, 0]}>
+      <LatticeTower x={towerX} height={height * 1.12} w={2.2} d={2.2} />
+      {Array.from({ length: 7 }, (_, k) => (
+        <mesh key={k} position={[towerX, (k + 1) * height * 1.12 / 7, 0]} receiveShadow>
+          <boxGeometry args={[2.3, 0.06, 2.3]} />
+          <meshStandardMaterial color="#6c7477" metalness={.5} roughness={.6} />
+        </mesh>
+      ))}
+      <mesh position={[towerX, height * 1.12 + 2.2, 0]}><cylinderGeometry args={[0.04, 0.09, 4.4, 8]}/><meshStandardMaterial color="#cfd2cf" metalness={.6} roughness={.4}/></mesh>
+      {/* Elevator shaft */}
+      <mesh position={[towerX - 0.6, height * 0.56, 0.6]}><boxGeometry args={[0.6, height * 1.12, 0.6]}/><meshStandardMaterial color="#b9bdb9" metalness={.3} roughness={.6} transparent opacity={.85}/></mesh>
     </group>
-    <group ref={arms} position={[-6.5,0,-1]}>
-      {levels.slice(1,4).map((y,i)=><group key={`umbilical-${i}`} position={[0,y,0]}>
-        <mesh position={[2.8,0,0]} castShadow><boxGeometry args={[5.5,.22,.3]}/>{steel}</mesh>
-        <mesh position={[5.55,-.12,0]}><boxGeometry args={[.18,.62,.68]}/><meshStandardMaterial color="#d68d4c" metalness={.45} roughness={.48}/></mesh>
-        <mesh position={[5.7,-.34,0]}><boxGeometry args={[.42,.12,.54]}/><meshStandardMaterial color="#242f32" metalness={.55} roughness={.4}/></mesh>
-        <mesh position={[2.5,.2,.25]} rotation={[0,0,-.27]}><boxGeometry args={[5.3,.07,.07]}/><meshStandardMaterial color="#a8bac0" metalness={.8} roughness={.3}/></mesh>
-      </group>)}
-    </group>
-    <group ref={clamps}>
-      {[-1,1].flatMap(x=>[-1,1].map(z=><group key={`${x}:${z}`} position={[x*2.7,0,z*2.4]}>
-        <mesh position={[0,.32,0]} castShadow><boxGeometry args={[.72,.64,.75]}/><meshStandardMaterial color="#cf8750" metalness={.5} roughness={.48}/></mesh>
-        <mesh position={[0,.7,0]}><boxGeometry args={[.2,.22,.18]}/><meshStandardMaterial color="#9fa7a1" metalness={.75} roughness={.38}/></mesh>
-      </group>))}
-    </group>
-    {/* Ground service lines, equipment kiosks, cable trays and safety markers. */}
-    {[-1,1].map(side=><group key={`service-${side}`}>
-      <mesh position={[side*11,.35,-8]}><boxGeometry args={[1.7,.7,2.4]}/><meshStandardMaterial color="#45565a" metalness={.55} roughness={.55}/></mesh>
-      <mesh position={[side*11,.73,-8]}><boxGeometry args={[1.9,.08,2.6]}/><meshStandardMaterial color="#c7894f" metalness={.45} roughness={.48}/></mesh>
-      <mesh position={[side*5,.08,-10]}><boxGeometry args={[.2,.15,18]}/><meshStandardMaterial color="#526265" metalness={.65} roughness={.5}/></mesh>
-      {Array.from({length:5},(_,i)=><mesh key={i} position={[side*(8+i*.6),.014,10]} rotation={[-Math.PI/2,0,0]}><boxGeometry args={[.4,.4,.018]}/><meshBasicMaterial color={i%2?"#d1a455":"#172125"}/></mesh>)}
-    </group>)}
-    <group position={[9,0,-5]}>
-      {[-1,1].map(x=><mesh key={x} position={[x*1.3,8,0]} castShadow><cylinderGeometry args={[.09,.07,16,10]}/><meshStandardMaterial color="#778689" metalness={.75} roughness={.32}/></mesh>)}
-      <mesh position={[0,16,0]}><cylinderGeometry args={[.03,.03,3,8]}/><meshStandardMaterial color="#9ba5a2" metalness={.8}/></mesh>
-      {[-1,1].map(x=><mesh key={x} position={[x*.5,8,0]}><boxGeometry args={[1,.12,.12]}/><meshStandardMaterial color="#8d9b98" metalness={.7}/></mesh>)}
-    </group>
+    {/* Swing arms: pivot at the tower face, rotate horizontally to stow along the tower */}
+    {armLevels.map((y, i) => (
+      <group key={i} ref={(n) => { arms.current[i] = n; }} position={[face, y, 0]}>
+        <SwingArm length={-face - radius * (i === 3 ? 0.95 : 1.02)} crew={i === 2} />
+      </group>
+    ))}
+    {/* Tail service masts at the base */}
+    {[-1, 1].map((side) => (
+      <group key={side} position={[side * 1.3, 0, -radius * 2.4]}>
+        <LatticeTower x={0} height={1.6} w={0.5} d={0.5} />
+        <mesh position={[0, 1.55, 0.3]} rotation={[0.5, 0, 0]}><boxGeometry args={[0.55, 0.35, 0.5]}/><meshStandardMaterial color="#d7d8d3" metalness={.4} roughness={.5}/></mesh>
+      </group>
+    ))}
   </group>;
 }
 function LaunchSmoke({ active }: { active: boolean }) {
@@ -237,6 +281,7 @@ function Launch() {
       cam.x += Math.sin(data.stageTime * 37) * 0.035;
       cam.y += Math.sin(data.stageTime * 43) * 0.03;
     }
+    if (settings.flightCamera !== "overview") rigCamera(cam, target);
     camera.position.lerp(
       cam,
       settings.reducedMotion ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 4),
@@ -251,6 +296,7 @@ function Launch() {
         height={layout.height}
         active={d.launchChecks.every(Boolean) && p > 0.065}
         liftoff={p > 0.12}
+        radius={coreR}
       />
       <Deluge active={() => !useGame.getState().paused && engine.data.launchChecks.every(Boolean) && launchFraction(engine.data) > 0.07 && launchFraction(engine.data) < 0.2} />
       <LaunchClouds

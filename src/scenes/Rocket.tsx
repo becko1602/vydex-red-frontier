@@ -14,7 +14,7 @@ function fairingProfile(R: number, h: number, L: number) {
   const rho = (R * R + L * L) / (2 * R);
   for (let i = 1; i <= 24; i++) {
     const x = (i / 24) * L;
-    const y = Math.sqrt(rho * rho - (L - x) * (L - x)) + R - rho;
+    const y = Math.sqrt(rho * rho - x * x) + R - rho;
     pts.push(new THREE.Vector2(Math.max(0.0001, y), h + x));
   }
   return pts;

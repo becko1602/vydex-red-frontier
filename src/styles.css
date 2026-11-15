@@ -4687,3 +4687,7 @@ footer i:not(.status-dot) {
 .drive-help-body kbd{font:9px monospace;padding:2px 5px;border:1px solid #ffffff40;border-radius:3px;color:#e6f1f2}
 .drive-help .touch-controls{position:static;transform:none}
 .drive-help{bottom:50px}
+/* Cinematic lens vignette over the 3D view */
+.scene::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.38) 100%);z-index:1}
+.scene canvas{cursor:grab}
+.scene canvas:active{cursor:grabbing}

@@ -90,6 +90,8 @@ import ControlsGuide from "./ui/Controls";
 import InspectionControls, {openInspection} from "./ui/Inspection";
 import Thumbnails from "./scenes/Thumbnails";
 import RoverOps from "./ui/RoverOps";
+import { attachCameraRig } from "./cameraRig";
+import PostFX from "./scenes/PostFX";
 import DriveHelp from "./ui/DriveHelp";
 const RocketHangar = lazy(()=>import("./scenes/RocketHangar"));
 const Orbital = lazy(() => import("./scenes/Orbital"));
@@ -227,6 +229,7 @@ function Scene() {
             powerPreference: "high-performance",
           }}
           onCreated={({ gl }) => {
+            attachCameraRig(gl.domElement);
             gl.toneMapping = THREE.ACESFilmicToneMapping;
             gl.toneMappingExposure = 1.05;
             gl.outputColorSpace = THREE.SRGBColorSpace;
@@ -254,6 +257,7 @@ function Scene() {
             )}
           </Suspense>
           <SceneEnvironment/>
+          <PostFX/>
           <Thumbnails/>
           <ObservationCapture/>
           <AdaptiveResolution />
@@ -806,7 +810,7 @@ function Surface() {
             </button>
           ))}
         </div>
-        <label className="surface-zoom">Zoom <input aria-label="Surface camera zoom" type="range" min=".55" max="2" step=".05" value={settings.flightZoom} onChange={(e) => setSettings({ flightZoom: +e.target.value })}/></label>
+        <label className="surface-zoom">Zoom <input aria-label="Surface camera zoom" type="range" min=".3" max="3.5" step=".05" value={settings.flightZoom} onChange={(e) => setSettings({ flightZoom: +e.target.value })}/></label>
         <p className="micro">
           ENERGY TIMELINE ×30
           <br />
