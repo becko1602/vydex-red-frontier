@@ -17,6 +17,74 @@ import { launchers } from "../data/launchVehicles";
 import { launcherFit } from "./payload";
 export const clamp = (v: number, a: number, b: number) =>
   Math.max(a, Math.min(b, v));
+export type EducationalAscentSpec = {
+  diameterM: number;
+  dryMassKg: number;
+  propellantKg: number;
+  thrustN: number;
+  specificImpulseS: number;
+  dragCoefficient: number;
+};
+export type AscentState = {
+  elapsedS: number;
+  altitudeM: number;
+  verticalSpeedMps: number;
+  propellantKg: number;
+  massKg: number;
+  thrustN: number;
+  dragN: number;
+  netForceN: number;
+};
+/**
+ * Educational one dimensional ascent example. The fictional carrier is
+ * represented by one equivalent engine and dry stage; it is not a prediction
+ * of a real launch vehicle, ascent guidance profile, or orbital insertion.
+ */
+export function launchAscent(
+  spec: EducationalAscentSpec,
+  payloadKg: number,
+  elapsedS: number,
+): AscentState {
+  let state: AscentState = {
+    elapsedS: 0,
+    altitudeM: 0,
+    verticalSpeedMps: 0,
+    propellantKg: Math.max(0, spec.propellantKg),
+    massKg: Math.max(0, spec.dryMassKg) + Math.max(0, payloadKg) + Math.max(0, spec.propellantKg),
+    thrustN: 0,
+    dragN: 0,
+    netForceN: 0,
+  };
+  let remaining = Math.max(0, elapsedS);
+  while (remaining > 1e-9) {
+    const dt = Math.min(0.05, remaining);
+    const throttle = clamp(state.elapsedS / 0.8, 0, 1);
+    const thrust = state.propellantKg > 0 ? spec.thrustN * throttle : 0;
+    const flow = spec.specificImpulseS > 0 ? thrust / (spec.specificImpulseS * C.g0) : 0;
+    const used = Math.min(state.propellantKg, flow * dt);
+    const mass = Math.max(1, spec.dryMassKg + payloadKg + state.propellantKg - used * 0.5);
+    const rho = 1.225 * Math.exp(-Math.max(0, state.altitudeM) / 8500);
+    const area = Math.PI * (Math.max(.01, spec.diameterM) / 2) ** 2;
+    const drag = .5 * rho * spec.dragCoefficient * area * state.verticalSpeedMps ** 2;
+    const averageThrust = state.propellantKg > 0 ? (used > 0 ? used / dt * spec.specificImpulseS * C.g0 : thrust) : 0;
+    const net = averageThrust - drag - mass * 9.80665;
+    const acceleration = net / mass;
+    const nextVelocity = Math.max(0, state.verticalSpeedMps + acceleration * dt);
+    const altitude = Math.max(0, state.altitudeM + (state.verticalSpeedMps + nextVelocity) * .5 * dt);
+    state = {
+      elapsedS: state.elapsedS + dt,
+      altitudeM: altitude,
+      verticalSpeedMps: nextVelocity,
+      propellantKg: Math.max(0, state.propellantKg - used),
+      massKg: Math.max(0, spec.dryMassKg + payloadKg + state.propellantKg - used),
+      thrustN: averageThrust,
+      dragN: drag,
+      netForceN: net,
+    };
+    remaining -= dt;
+  }
+  return state;
+}
 export const BATTERY_CAPACITY_WH = 600;
 export const CRUISE_POWER_EPISODE_SECONDS = 2 * 3600;
 export const CRUISE_GENERATION_W = 45;
@@ -291,21 +359,25 @@ export function terrainHeight(
   destination: DestinationId = "mars",
 ) {
   if (destination === "moon") {
-    const dist = Math.hypot(x, z),
-      fade = clamp((dist - 12) / 25, 0, 1);
-    let h = 0.7 * Math.sin(x * 0.045) * Math.sin(z * 0.035);
+    // Continuous local lunar terrain. Crater bowls and rims are analytic so
+    // the renderer, landing solver and touchdown tests share the same surface.
+    let h = 0.22 * Math.sin(x * 0.045) * Math.sin(z * 0.035)
+      + 0.12 * Math.sin((x + z) * 0.11);
     for (const [cx, cz, r] of [
+      [0, 0, 16],
       [-45, -55, 22],
       [52, -88, 28],
       [70, 45, 18],
       [-80, 30, 26],
+      [35, 102, 12],
+      [-112, -5, 17],
+      [125, 80, 24],
     ]) {
       const d = Math.hypot(x - cx, z - cz) / r;
-      h +=
-        2 * Math.exp(-(((d - 1) / 0.13) ** 2)) -
-        3 * Math.exp(-((d / 0.7) ** 4));
+      h += 1.05 * Math.exp(-(((d - 1) / 0.12) ** 2))
+        - 1.45 * Math.exp(-((d / 0.72) ** 4));
     }
-    return h * fade;
+    return h;
   }
   const fade = clamp((Math.hypot(x, z) - 12) / 35, 0, 1);
   return (

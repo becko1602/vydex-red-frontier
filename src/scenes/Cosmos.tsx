@@ -8,9 +8,10 @@ import { Spacecraft } from "./Spacecraft";
 import { LaunchVehicle, rocketLayout, ROCKET_VISUAL_SCALE } from "./Rocket";
 import { engine, transfer } from "../sim/game";
 import { useGame } from "../store";
-import { planetPositions, transferPosition, clamp } from "../sim/physics";
+import { planetPositions, transferPosition, clamp, launchAscent, masses } from "../sim/physics";
 import { payloadEnvelope } from "../sim/payload";
-import { launchFraction } from "../sim/journey";
+import { launchFraction, launchDuration } from "../sim/journey";
+import { launchers } from "../data/launchVehicles";
 import { solarSystem } from "../data/solarSystem";
 import {
   heliocentricBodyIds,
@@ -65,73 +66,108 @@ function OrbitDirectionArrow({
     </group>
   );
 }
-function LaunchPadSupports({ height, active }: { height: number; active: boolean }) {
-  const ref = useRef<THREE.Group>(null),
-    offset = useRef(0);
+function LaunchComplex({ height, active, liftoff }: { height: number; active: boolean; liftoff: boolean }) {
+  const arms = useRef<THREE.Group>(null), clamps = useRef<THREE.Group>(null);
+  const retract = useRef(0), release = useRef(0);
   useFrame((_, dt) => {
-    offset.current = THREE.MathUtils.damp(
-      offset.current,
-      active ? 0 : 1,
-      6,
-      Math.min(dt, 0.1),
-    );
-    if (ref.current) ref.current.position.x = offset.current * 1.8;
+    retract.current = THREE.MathUtils.damp(retract.current, active ? 1 : 0, 1.8, Math.min(dt, .1));
+    release.current = THREE.MathUtils.damp(release.current, liftoff ? 1 : 0, 4, Math.min(dt, .1));
+    if (arms.current) arms.current.rotation.z = retract.current * 1.2;
+    if (clamps.current) clamps.current.rotation.y = release.current * .35;
   });
-  const levels = [height * 0.3, height * 0.62];
-  return (
-    <group ref={ref}>
-      {levels.flatMap((y) =>
-        [0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle) => (
-          <group key={`${y}:${angle}`} rotation={[0, angle, 0]}>
-            <mesh position={[2.35, y, 0]} castShadow>
-              <boxGeometry args={[3.5, 0.2, 0.3]} />
-              <meshStandardMaterial
-                color="#7e8f91"
-                metalness={0.85}
-                roughness={0.3}
-              />
-            </mesh>
-            <mesh position={[0.78, y, 0]} castShadow>
-              <boxGeometry args={[0.28, 0.72, 0.72]} />
-              <meshStandardMaterial
-                color="#263b43"
-                metalness={0.8}
-                roughness={0.34}
-              />
-            </mesh>
-            <mesh position={[0.62, y, 0]}>
-              <boxGeometry args={[0.12, 0.34, 0.56]} />
-              <meshStandardMaterial
-                color="#e2a35f"
-                metalness={0.7}
-                roughness={0.32}
-              />
-            </mesh>
-            <mesh position={[4.08, y - 0.22, 0]}>
-              <cylinderGeometry args={[0.12, 0.12, 0.45, 12]} />
-              <meshStandardMaterial
-                color="#d3d9d7"
-                metalness={0.9}
-                roughness={0.25}
-              />
-            </mesh>
-          </group>
-        )),
-      )}
-      {[-1, 1].flatMap((x) =>
-        [-1, 1].map((z) => (
-          <mesh key={`${x}:${z}`} position={[x * 3.7, -0.02, z * 2.9]}>
-            <boxGeometry args={[0.9, 0.18, 0.9]} />
-            <meshStandardMaterial color="#d47d47" metalness={0.5} roughness={0.5} />
-          </mesh>
-        )),
-      )}
+  const levels = [.2, .42, .64, .84, .96].map(f => height * f);
+  const steel = <meshStandardMaterial color="#40545a" metalness={.72} roughness={.4} />;
+  const concrete = <meshStandardMaterial color="#686e6a" metalness={.12} roughness={.92} />;
+  return <group>
+    {/* Rectangular foundation follows the surrounding planetary surface. */}
+    <mesh position={[0,-.31,0]} receiveShadow castShadow><boxGeometry args={[30,.62,38]}/>{concrete}</mesh>
+    <mesh position={[0,-.7,0]}><boxGeometry args={[38,.3,48]}/><meshStandardMaterial color="#343e3e" roughness={1}/></mesh>
+    {/* Recessed flame trench, heat shield and exhaust diversion channel. */}
+    <mesh position={[0,-.025,0]}><boxGeometry args={[3.3,.07,22]}/><meshStandardMaterial color="#10191b" metalness={.5} roughness={.8}/></mesh>
+    {[-1,1].map(side=><group key={`trench-${side}`}>
+      <mesh position={[side*2,-.02,0]}><boxGeometry args={[.42,.36,22]}/><meshStandardMaterial color="#404a49" metalness={.2} roughness={.9}/></mesh>
+      <mesh position={[side*7.1,.06,0]}><boxGeometry args={[10,.16,26]}/>{concrete}</mesh>
+      <mesh position={[side*4.2,.12,0]} rotation={[0,0,side*.28]}><boxGeometry args={[1.2,.24,3.4]}/><meshStandardMaterial color="#8c8e85" metalness={.32} roughness={.66}/></mesh>
+      <mesh position={[side*10,.13,-2]}><boxGeometry args={[4,.26,5]}/>{concrete}</mesh>
+    </group>)}
+    <mesh position={[0,-.47,0]}><boxGeometry args={[10,.25,9]}/><meshStandardMaterial color="#202a2c" metalness={.4} roughness={.75}/></mesh>
+    {/* Fixed steel service tower. Only its hinged umbilicals retract. */}
+    <group position={[-6.5,0,-1]}>
+      {[-1,1].map(z=><mesh key={z} position={[0,height*.5,z*2.25]} castShadow><boxGeometry args={[.5,height, .5]}/>{steel}</mesh>)}
+      {levels.map(y=><group key={y}>
+        <mesh position={[0,y,0]} castShadow><boxGeometry args={[.58,.24,5.1]}/>{steel}</mesh>
+        <mesh position={[0,y+.2,0]}><boxGeometry args={[.7,.035,5.4]}/><meshStandardMaterial color="#c39351" metalness={.45} roughness={.5}/></mesh>
+        {[-1,1].map(z=><mesh key={z} position={[0,y,z*2.25]}><boxGeometry args={[.48,.68,.48]}/><meshStandardMaterial color="#27373b" metalness={.6} roughness={.48}/></mesh>)}
+      </group>)}
+      {levels.slice(0,-1).map((y,i)=><group key={`brace-${i}`}>
+        {[-1,1].map(z=><mesh key={z} position={[0,y+height*.1,z*2.25]} rotation={[0,0,(i%2?1:-1)*.42]}><boxGeometry args={[.16,height*.2,.16]}/>{steel}</mesh>)}
+      </group>)}
+      {Array.from({length:14},(_,i)=><mesh key={`stair-${i}`} position={[.48,i*height*.062,-1.7+i%2*.25]} rotation={[0,0,.1]}><boxGeometry args={[.9,.09,.65]}/><meshStandardMaterial color="#768285" metalness={.62} roughness={.48}/></mesh>)}
+      {[-1,1].map(z=><mesh key={`rail-${z}`} position={[0,height*.52,z*2.8]}><boxGeometry args={[.16,height*1.06,.16]}/><meshStandardMaterial color="#53656a" metalness={.7} roughness={.4}/></mesh>)}
     </group>
-  );
+    <group ref={arms} position={[-6.5,0,-1]}>
+      {levels.slice(1,4).map((y,i)=><group key={`umbilical-${i}`} position={[0,y,0]}>
+        <mesh position={[2.8,0,0]} castShadow><boxGeometry args={[5.5,.22,.3]}/>{steel}</mesh>
+        <mesh position={[5.55,-.12,0]}><boxGeometry args={[.18,.62,.68]}/><meshStandardMaterial color="#d68d4c" metalness={.45} roughness={.48}/></mesh>
+        <mesh position={[5.7,-.34,0]}><boxGeometry args={[.42,.12,.54]}/><meshStandardMaterial color="#242f32" metalness={.55} roughness={.4}/></mesh>
+        <mesh position={[2.5,.2,.25]} rotation={[0,0,-.27]}><boxGeometry args={[5.3,.07,.07]}/><meshStandardMaterial color="#a8bac0" metalness={.8} roughness={.3}/></mesh>
+      </group>)}
+    </group>
+    <group ref={clamps}>
+      {[-1,1].flatMap(x=>[-1,1].map(z=><group key={`${x}:${z}`} position={[x*2.7,0,z*2.4]}>
+        <mesh position={[0,.32,0]} castShadow><boxGeometry args={[.72,.64,.75]}/><meshStandardMaterial color="#cf8750" metalness={.5} roughness={.48}/></mesh>
+        <mesh position={[0,.7,0]}><boxGeometry args={[.2,.22,.18]}/><meshStandardMaterial color="#9fa7a1" metalness={.75} roughness={.38}/></mesh>
+      </group>))}
+    </group>
+    {/* Ground service lines, equipment kiosks, cable trays and safety markers. */}
+    {[-1,1].map(side=><group key={`service-${side}`}>
+      <mesh position={[side*11,.35,-8]}><boxGeometry args={[1.7,.7,2.4]}/><meshStandardMaterial color="#45565a" metalness={.55} roughness={.55}/></mesh>
+      <mesh position={[side*11,.73,-8]}><boxGeometry args={[1.9,.08,2.6]}/><meshStandardMaterial color="#c7894f" metalness={.45} roughness={.48}/></mesh>
+      <mesh position={[side*5,.08,-10]}><boxGeometry args={[.2,.15,18]}/><meshStandardMaterial color="#526265" metalness={.65} roughness={.5}/></mesh>
+      {Array.from({length:5},(_,i)=><mesh key={i} position={[side*(8+i*.6),.014,10]} rotation={[-Math.PI/2,0,0]}><boxGeometry args={[.4,.4,.018]}/><meshBasicMaterial color={i%2?"#d1a455":"#172125"}/></mesh>)}
+    </group>)}
+    <group position={[9,0,-5]}>
+      {[-1,1].map(x=><mesh key={x} position={[x*1.3,8,0]} castShadow><cylinderGeometry args={[.09,.07,16,10]}/><meshStandardMaterial color="#778689" metalness={.75} roughness={.32}/></mesh>)}
+      <mesh position={[0,16,0]}><cylinderGeometry args={[.03,.03,3,8]}/><meshStandardMaterial color="#9ba5a2" metalness={.8}/></mesh>
+      {[-1,1].map(x=><mesh key={x} position={[x*.5,8,0]}><boxGeometry args={[1,.12,.12]}/><meshStandardMaterial color="#8d9b98" metalness={.7}/></mesh>)}
+    </group>
+  </group>;
+}
+function LaunchSmoke({ active }: { active: boolean }) {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const color = useMemo(() => new THREE.Color(), []);
+  const count = 96;
+  useFrame(({ clock }) => {
+    if (!mesh.current) return;
+    mesh.current.visible = active;
+    if (!active) return;
+    const t = clock.getElapsedTime();
+    for (let i = 0; i < count; i++) {
+      const age = (t * .32 + i / count) % 1;
+      const angle = i * 2.399963;
+      const spread = .8 + age * 10;
+      dummy.position.set(Math.cos(angle) * spread + age * 1.6, .18 + age * (1.6 + (i % 7) * .1), Math.sin(angle) * spread);
+      const size = .18 + age * (1.35 + (i % 5) * .14);
+      dummy.scale.set(size * 1.25, size * .62, size);
+      dummy.rotation.set(0, angle, 0);
+      dummy.updateMatrix();
+      mesh.current.setMatrixAt(i, dummy.matrix);
+      color.setHSL(.09, .025, .39 + age * .19);
+      mesh.current.setColorAt(i, color);
+    }
+    mesh.current.instanceMatrix.needsUpdate = true;
+    if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true;
+  });
+  return <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false}>
+    <sphereGeometry args={[1, 8, 6]} />
+    <meshStandardMaterial color="#a39d8c" roughness={1} transparent opacity={.12} depthWrite={false} />
+  </instancedMesh>;
 }
 function Launch() {
   const d = useGame((s) => s.data),
-    settings = useGame((s) => s.settings);
+    settings = useGame((s) => s.settings),
+    paused = useGame((s) => s.paused);
   const carrier = useRef<THREE.Group>(null),
     payload = useRef<THREE.Group>(null),
     spaceStars = useRef<THREE.Group>(null);
@@ -141,11 +177,13 @@ function Launch() {
   const p = launchFraction(d),
     reveal = clamp((p - 0.53) / 0.17, 0, 1),
     spread = clamp((p - 0.38) / 0.12, 0, 1),
-    layout=rocketLayout(d.design.launcher??"titan"), envelope=payloadEnvelope(d.design);
+    layout=rocketLayout(d.design.launcher??"titan"), envelope=payloadEnvelope(d.design),
+    launcher= d.design.launcher??"titan",
+    ascent=launchAscent(launchers[launcher].ascentModel, masses(d.design).wet, Math.max(0,d.stageTime-launchDuration(d)*.12));
   useFrame((_, dt) => {
     const data = engine.data,
       progress = launchFraction(data),
-      lift = 70 * Math.pow(clamp((progress - 0.12) / 0.58, 0, 1), 2),
+      lift = progress < .12 ? 0 : ascent.altitudeM * .014,
       angle = Math.max(0, progress - 0.7) * 0.8;
     target.set(Math.sin(angle) * 140, -60 + Math.cos(angle) * 140, 0);
     if (progress < 0.7) target.set(0, lift + layout.payloadY, 0);
@@ -209,39 +247,15 @@ function Launch() {
       <group ref={spaceStars}>
         <Stars radius={400} depth={200} count={850} factor={3} fade speed={0} />
       </group>
-      <group position={[0, -60, 0]}>
-        <Planet kind="earth" radius={55} spin={false} />
+      <group position={[0, -400, 0]}>
+        <Planet kind="earth" radius={400} spin={false} />
       </group>
-      <mesh position={[0, -0.65, 0]} receiveShadow>
-        <cylinderGeometry args={[12, 14, 1.2, 48]} />
-        <meshStandardMaterial color="#697475" roughness={0.95} />
-      </mesh>
-      <mesh position={[0, -0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[5, 5.18, 48]} />
-        <meshBasicMaterial color="#bfd4d1" />
-      </mesh>
-      <LaunchPadSupports
+      <LaunchComplex
         height={layout.height}
-        active={!d.launchChecks.every(Boolean) || p < 0.12}
+        active={d.launchChecks.every(Boolean) && p > 0.065}
+        liftoff={p > 0.12}
       />
-      {[-1, 1].map((side) => (
-        <group key={side} position={[side * 6, 7, -3]}>
-          <mesh>
-            <boxGeometry args={[0.35, 15, 0.35]} />
-            <meshStandardMaterial
-              color="#6c8189"
-              metalness={0.65}
-              roughness={0.5}
-            />
-          </mesh>
-          {Array.from({ length: 6 }, (_, i) => (
-            <mesh key={i} position={[-side * 1, i * 2 - 6, 0]}>
-              <boxGeometry args={[2, 0.15, 0.15]} />
-              <meshStandardMaterial color="#748b92" />
-            </mesh>
-          ))}
-        </group>
-      ))}
+      <LaunchSmoke active={!paused && d.launchChecks.every(Boolean) && p > 0.12 && p < 0.7} />
       <group ref={carrier}>
         <LaunchVehicle
           id={d.design.launcher??"titan"}

@@ -21,7 +21,7 @@ function Terrain() {
   );
   useEffect(() => () => texture.dispose(), [texture]);
   const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(300, 300, 110, 110);
+    const g = new THREE.PlaneGeometry(900, 900, 180, 180);
     g.rotateX(-Math.PI / 2);
     const p = g.attributes.position,
       colors = [];
@@ -216,6 +216,38 @@ function RoverDust() {
       ))}
     </group>
   );
+}
+function LandingRegolith() {
+  const cloud = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const count = 120;
+  useFrame(({ clock }) => {
+    const l = engine.data.lander;
+    const active = engine.data.destination === "moon" && engine.data.stage === "landing" && l.status === "flying" && l.throttle > .2;
+    if (!cloud.current) return;
+    cloud.current.visible = active;
+    if (!active) return;
+    const t = clock.getElapsedTime();
+    for (let i = 0; i < count; i++) {
+      const age = (t * .38 + i / count) % 1;
+      const angle = i * 2.399963;
+      const radius = .6 + age * (5 + l.throttle * 7);
+      const x = l.x + Math.cos(angle) * radius;
+      const z = l.z + Math.sin(angle) * radius;
+      const y = terrainHeight(x, z) + .05 + 2 * age - .81 * age * age;
+      const size = .035 + age * .12;
+      dummy.position.set(x, y, z);
+      dummy.scale.set(size * 1.6, size * .6, size);
+      dummy.rotation.set(0, angle, 0);
+      dummy.updateMatrix();
+      cloud.current.setMatrixAt(i, dummy.matrix);
+    }
+    cloud.current.instanceMatrix.needsUpdate = true;
+  });
+  return <instancedMesh ref={cloud} args={[undefined, undefined, count]} frustumCulled={false}>
+    <sphereGeometry args={[1, 7, 5]} />
+    <meshStandardMaterial color="#a8a8a6" roughness={1} transparent opacity={.38} depthWrite={false} />
+  </instancedMesh>;
 }
 export default function World() {
   const destination = useGame((s) => s.data.destination);
@@ -440,22 +472,7 @@ export default function World() {
       <Rocks />
       <Mountains />
       {settings.quality !== "low" && destination === "mars" && <Dust />}
-      <group position={[0, 0.025, 0]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <circleGeometry args={[6, 48]} />
-          <meshStandardMaterial color="#54524a" roughness={0.9} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
-          <ringGeometry args={[5.5, 5.65, 48]} />
-          <meshBasicMaterial color="#d4bb8f" />
-        </mesh>
-        {[-1, 1].map((n) => (
-          <mesh key={n} position={[n * 2, 0.05, 0]}>
-            <boxGeometry args={[0.12, 0.03, 4]} />
-            <meshBasicMaterial color="#bdba9c" />
-          </mesh>
-        ))}
-      </group>
+      <LandingRegolith />
       {destination === "mars" &&
         engine.targets().map((t, i) => (
           <group key={t.id} position={[t.x, terrainHeight(t.x, t.z), t.z]}>
@@ -647,6 +664,7 @@ function LanderFlame() {
       const l = engine.data.lander;
       ref.current.visible = l.status === "flying" && l.throttle > 0.01;
       ref.current.scale.set(1, Math.max(0.01, l.throttle * 2.5), 1);
+      ref.current.position.y = -0.58 - l.throttle * 1.2;
     }
   });
   return (

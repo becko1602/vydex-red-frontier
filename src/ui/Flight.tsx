@@ -15,6 +15,7 @@ import {
   launchDuration,
 } from "../sim/journey";
 import { destinations } from "../data/destinations";
+import { launchers } from "../data/launchVehicles";
 import {
   stableAttitude,
   sampleCorridor,
@@ -33,7 +34,6 @@ import { useState } from "react";
 import FlightTouch from "./FlightTouch";
 import {EngineControls} from "./Telemetry";
 import {openInspection} from "./Inspection";
-import {launchers} from "../data/launchVehicles";
 import { solarSystem, type SolarBodyId } from "../data/solarSystem";
 import TouchControls from "./TouchDrive";
 const selectablePlanets: SolarBodyId[] = [
@@ -115,6 +115,7 @@ export function LaunchPanel() {
     act = useGame((s) => s.act),
     set = useGame((s) => s.setSettings),
     settings = useGame((s) => s.settings);
+  const launchModel=launchers[d.design.launcher??"titan"].ascentModel;
   return (
     <main className="journey-ui">
       <section className="mission-panel journey-panel">
@@ -125,10 +126,12 @@ export function LaunchPanel() {
           <em>To {destinations[d.destination].name.toLowerCase()}.</em>
         </h1>
         <p className="model-note">
-          Scripted cinematic launch sequence. Scene scales are compressed; the
-          progress display is a presentation cue, not calculated ascent
-          telemetry.
+          Educational vertical ascent model drives altitude and speed telemetry. Stage separation and orbital insertion remain presentation cues.
         </p>
+        <details className="ascent-assumptions">
+          <summary>Ascent model assumptions</summary>
+          <p>Fictional example carrier values: {launchModel.dryMassKg.toLocaleString()} kg dry, {launchModel.propellantKg.toLocaleString()} kg propellant, {launchModel.thrustN.toLocaleString()} N, Isp {launchModel.specificImpulseS} s, Cd {launchModel.dragCoefficient}. The example uses a single equivalent stage, standard Earth gravity, exponential air density, and drag from vehicle diameter. These are not real vehicle specifications or an orbit insertion prediction.</p>
+        </details>
         <div className="launch-checklist">
           {[
             "Verify payload fairing",
